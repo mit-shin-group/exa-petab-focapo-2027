@@ -1,0 +1,10 @@
+# NOTE: the top-level Manifest.toml is intentionally COMMITTED — it pins the exact
+# package versions used to generate every benchmark number/figure (reproducibility).
+
+# vendored-package scratch manifest (regenerated locally, not the pinned one)
+/ExaModelsPEtab/Manifest.toml
+
+# benchmark run artifacts (transient / large)
+/debugging/logs/
+/debugging/archive/
+*.log
