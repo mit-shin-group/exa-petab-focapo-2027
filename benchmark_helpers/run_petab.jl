@@ -1,21 +1,21 @@
 # run_petab.jl — PEtab.jl + Optim.IPNewton benchmark
 #
 # Compiles and solves each PEtab model with Optim.IPNewton (PEtab.jl's recommended
-# optimizer). Results written to Benchmarks/results/{Model}_results.txt using prefixed
+# optimizer). Results written to benchmark_results/{Model}_results.txt using prefixed
 # keys (petab_*) so ExaModels results in the same file are preserved.
 #
 # Intended to be launched once per model (many in parallel from a shell loop):
 #   for m in <model_list>; do
-#     julia --project=. -t 1 Benchmarks/run_petab.jl "$m" &
+#     julia --project=. -t 1 benchmark_helpers/run_petab.jl "$m" &
 #   done
 # Or run serially:
-#   julia --project=. -t 1 Benchmarks/run_petab.jl Bachmann_MSB2011
+#   julia --project=. -t 1 benchmark_helpers/run_petab.jl Bachmann_MSB2011
 #
 # To run all 35 models in parallel (up to PAR concurrent workers):
 #   PAR=12
-#   for m in $(julia --project=. -e 'include("Benchmarks/run_petab.jl"); print_models()'); do
+#   for m in $(julia --project=. -e 'include("benchmark_helpers/run_petab.jl"); print_models()'); do
 #     while [ $(jobs -rp | wc -l) -ge $PAR ]; do sleep 2; done
-#     julia --project=. -t 1 Benchmarks/run_petab.jl "$m" &
+#     julia --project=. -t 1 benchmark_helpers/run_petab.jl "$m" &
 #   done; wait
 
 using PEtab, Optim
@@ -23,14 +23,12 @@ using PEtab, Optim
 # ─── CONFIGURABLE SETTINGS ────────────────────────────────────────────────────
 # ALL solver/benchmark settings live in options.jl (single source of truth, shared with
 # run_examodels.jl). Change them THERE, not here — below we only alias the BENCH_* constants.
-const MODELDIR  = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
-const RESULTDIR = joinpath(@__DIR__, "results")
-
-include(joinpath(@__DIR__, "options.jl"))  # model lists + BENCH_* config (TOL, SGM_N, limits, ...)
+include(joinpath(@__DIR__, "..", "options.jl"))  # MODELDIR + model sets + BENCH_* config
+const RESULTDIR = joinpath(@__DIR__, "..", "benchmark_results")
 
 const TOL           = BENCH_TOL                  # Optim g_tol (== MadNLP tol)
 const SOLVE_LIMIT   = BENCH_SOLVE_LIMIT          # Optim time_limit [s] (== MadNLP max_wall_time)
-const COMPILE_LIMIT = BENCH_PETAB_COMPILE_LIMIT  # PEtab build wall cap [s]
+const COMPILE_LIMIT = BENCH_COMPILE_LIMIT        # PEtab build wall cap [s]
 const MAX_ITER      = BENCH_MAX_ITER
 const N_SGM_RERUNS  = BENCH_SGM_N                 # shared SGM rerun count (== exa's)
 const SGM_SHIFT     = BENCH_SGM_SHIFT             # shared shift δ (== exa's)
@@ -43,9 +41,9 @@ const KEEP_SGM      = get(ENV, "BENCH_PETAB_KEEP_SGM", "0") == "1"
 # PEtab attempts EVERY benchmark model (optimum-found is only known after solving), minus the
 # shared JIT warmup Bruno (benchmarked via run_bruno.jl). Only used by print_models() /
 # the .sh driver; run_worker() benchmarks whatever model name is passed as ARGS[1].
-const ALL_MODELS = filter(!=(WARMUP_MODEL), BENCHMARK_MODELS)  # 34
+const RUN_MODELS = filter(!=(WARMUP_MODEL), BENCHMARK_MODELS)  # 34
 
-print_models() = foreach(m -> print(m, " "), ALL_MODELS)
+print_models() = foreach(m -> print(m, " "), RUN_MODELS)
 
 get_yaml(m) = begin
     d = joinpath(MODELDIR, m); isdir(d) || return nothing

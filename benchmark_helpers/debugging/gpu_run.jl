@@ -6,7 +6,7 @@
 
 using ExaModelsPEtab, CUDA, MadNLPGPU, CUDSS
 
-const MODELDIR = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
+const MODELDIR = joinpath(@__DIR__, "..", "..", "Benchmark-Models-PEtab")
 
 model         = length(ARGS) >= 1 ? ARGS[1] : "Crauste_CellSystems2017"
 K             = length(ARGS) >= 2 ? parse(Int,     ARGS[2]) : 5

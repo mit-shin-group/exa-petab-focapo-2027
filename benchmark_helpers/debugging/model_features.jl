@@ -2,7 +2,7 @@
 # Parses the SBML xml + PEtab tsv files directly to characterize each model:
 #   nspecies, nparam(est), nconditions, nmeas, SBML <event>s, piecewise(time) gates,
 #   assignment/rate rules, pre-equilibration, observable transforms, noise-model kind.
-const MD = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
+const MD = joinpath(@__DIR__, "..", "..", "Benchmark-Models-PEtab")
 const RD = joinpath(@__DIR__, "..", "Benchmarks", "results")
 
 models = length(ARGS) >= 1 ? ARGS : [

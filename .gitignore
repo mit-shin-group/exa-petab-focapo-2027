@@ -5,6 +5,6 @@
 /ExaModelsPEtab/Manifest.toml
 
 # benchmark run artifacts (transient / large)
-/debugging/logs/
-/debugging/archive/
+/benchmark_helpers/debugging/logs/
+/benchmark_helpers/debugging/archive/
 *.log

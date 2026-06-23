@@ -4,16 +4,16 @@
 #   y = SGM10-time speedup vs PEtab.jl    — petab_sgm / solver_sgm  (log10). PEtab ⇒ 1 (the 10^0 line).
 # Three series (legend order): MadNLP (GPU), MadNLP (CPU), IPNewton (CPU).
 #
-# Usage: julia --project=. Benchmarks/results_plot.jl [results_dir]
-#   results_dir defaults to Benchmarks/results.
+# Usage: julia --project=. benchmark_helpers/results_plot.jl [results_dir]
+#   results_dir defaults to benchmark_results.
 
 using Plots
 using Plots.PlotMeasures   # mm units for plot margins
 gr()
 
 const HERE      = @__DIR__
-include(joinpath(HERE, "options.jl"))   # EXA_SUPPORTED_MODELS, shifted_geomean, BENCH_SGM_SHIFT, BENCH_K
-const RESULTDIR = length(ARGS) >= 1 ? ARGS[1] : joinpath(HERE, "results")
+include(joinpath(HERE, "..", "options.jl"))   # model sets, shifted_geomean, BENCH_SGM_SHIFT, BENCH_K
+const RESULTDIR = length(ARGS) >= 1 ? ARGS[1] : joinpath(HERE, "..", "benchmark_results")
 
 function read_result(m)
     d = Dict{String,String}(); p = joinpath(RESULTDIR, "$(m)_results.txt")
@@ -80,7 +80,7 @@ gpu_x = Float64[]; gpu_y = Float64[]
 cpu_x = Float64[]; cpu_y = Float64[]
 pet_x  = Float64[]; pet_y  = Float64[]   # PEtab baseline where ExaModels also solved (0/0A)
 petx_x = Float64[]; petx_y = Float64[]   # PEtab solved but ExaModels did NOT (the 9/20) ⇒ X'd boxes
-for m in EXA_SUPPORTED_MODELS
+for m in BENCHMARK_MODELS
     d  = read_result(m)
     nv = get_nvar(d);            nv === nothing && continue       # never built ⇒ no x position
     pt = sgm10(d, "petab_"); (pt === nothing || pt <= 0) && continue   # PEtab baseline must have solved
@@ -163,7 +163,7 @@ regline!(plt, cpu_x, cpu_y, J_GREEN, XLIM)    # CPU trend (green)
 
 hline!(plt, [1.0]; ls = :dash, lc = :gray, lw = 1, label = "")     # dashed PEtab baseline at y=1
 
-out = joinpath(HERE, "results_plot.png")
+out = joinpath(HERE, "..", "results_plot.png")
 savefig(plt, out)
 println("saved: $out")
 println("points plotted — GPU: $(length(gpu_x)), CPU: $(length(cpu_x)), PEtab: $(length(pet_x)), PEtab-only (X'd): $(length(petx_x))")

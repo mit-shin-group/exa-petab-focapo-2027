@@ -5,7 +5,7 @@
 using ExaModelsPEtab, PEtab, CUDA, MadNLPGPU, CUDSS, ExaModels
 using PEtab: get_x
 
-const MODELDIR = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
+const MODELDIR = joinpath(@__DIR__, "..", "..", "Benchmark-Models-PEtab")
 model_name = get(ENV, "MODEL", "Oliveira_NatCommun2021")
 K          = parse(Int, get(ENV, "K", "4"))
 d    = joinpath(MODELDIR, model_name)

@@ -6,15 +6,14 @@
 #
 # Backend (BENCH_BACKEND, like run_examodels.jl): "gpu" (default) -> exagpu_*, "cpu" -> exacpu_*.
 # The PEtab side (petab_*) is backend-independent, so it runs only on the GPU pass.
-#   julia --project=. -t 1 Benchmarks/run_bruno.jl Bruno_JExpBot2016 [gpu_id]
-#   BENCH_BACKEND=cpu julia --project=. -t 1 Benchmarks/run_bruno.jl Bruno_JExpBot2016
+#   julia --project=. -t 1 benchmark_helpers/run_bruno.jl Bruno_JExpBot2016 [gpu_id]
+#   BENCH_BACKEND=cpu julia --project=. -t 1 benchmark_helpers/run_bruno.jl Bruno_JExpBot2016
 
 using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, Optim
 
 # ─── CONFIGURABLE SETTINGS (single source of truth = options.jl) ──────────────────
-const MODELDIR  = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
-const RESULTDIR = joinpath(@__DIR__, "results")
-include(joinpath(@__DIR__, "options.jl"))
+include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + model sets + BENCH_* config
+const RESULTDIR = joinpath(@__DIR__, "..", "benchmark_results")
 
 const TARGET       = (length(ARGS) >= 1 && !occursin(r"^\d+$", ARGS[1])) ? ARGS[1] : "Bruno_JExpBot2016"
 const WARMUP_MODEL = TARGET == "Crauste_CellSystems2017" ? "Bruno_JExpBot2016" : "Crauste_CellSystems2017"
@@ -22,7 +21,7 @@ const WARMUP_MODEL = TARGET == "Crauste_CellSystems2017" ? "Bruno_JExpBot2016" :
 const K             = BENCH_K
 const TOL           = BENCH_TOL
 const COMPILE_LIMIT = BENCH_COMPILE_LIMIT
-const PETAB_COMPILE_LIMIT = BENCH_PETAB_COMPILE_LIMIT
+const PETAB_COMPILE_LIMIT = BENCH_COMPILE_LIMIT
 const SOLVE_LIMIT   = BENCH_SOLVE_LIMIT
 const MAX_ITER      = BENCH_MAX_ITER
 const N_SGM_RERUNS  = BENCH_SGM_N

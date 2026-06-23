@@ -4,9 +4,9 @@ using ExaModelsPEtab, PEtab
 const EP = ExaModelsPEtab
 
 model = length(ARGS) >= 1 ? ARGS[1] : "Fujita_SciSignal2010"
-yaml  = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab", model, model * ".yaml")
-isfile(yaml) || (yaml = first(filter(isfile, [joinpath(@__DIR__, "..", "Benchmark-Models-PEtab",model,f)
-            for f in readdir(joinpath(@__DIR__, "..", "Benchmark-Models-PEtab",model)) if endswith(f,".yaml")])))
+yaml  = joinpath(@__DIR__, "..", "..", "Benchmark-Models-PEtab", model, model * ".yaml")
+isfile(yaml) || (yaml = first(filter(isfile, [joinpath(@__DIR__, "..", "..", "Benchmark-Models-PEtab",model,f)
+            for f in readdir(joinpath(@__DIR__, "..", "..", "Benchmark-Models-PEtab",model)) if endswith(f,".yaml")])))
 
 println("== $model ==")
 t = time(); PEmodel = PEtab.PEtabModel(yaml);        println("PEtabModel       $(round(time()-t;digits=1))s")

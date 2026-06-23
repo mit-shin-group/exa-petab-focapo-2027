@@ -7,7 +7,7 @@
 using PEtab
 import Optim
 
-const MODELDIR = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
+const MODELDIR = joinpath(@__DIR__, "..", "..", "Benchmark-Models-PEtab")
 
 models = length(ARGS) >= 1 ? ARGS :
          ["Crauste_CellSystems2017", "Boehm_JProteomeRes2014"]

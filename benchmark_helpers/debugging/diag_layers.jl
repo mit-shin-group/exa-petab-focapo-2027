@@ -1,6 +1,6 @@
 using ExaModelsPEtab, PEtab, ExaModels
 
-const MODELDIR = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
+const MODELDIR = joinpath(@__DIR__, "..", "..", "Benchmark-Models-PEtab")
 get_yaml(m) = (d = joinpath(MODELDIR, m); joinpath(d, first(filter(f -> endswith(lowercase(f), ".yaml"), readdir(d)))))
 
 # Print every NEW constraint layer since `from`, with the real GPU-kernel-param drivers:

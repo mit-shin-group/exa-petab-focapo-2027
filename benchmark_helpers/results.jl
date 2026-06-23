@@ -1,18 +1,18 @@
-# results.jl — reads Benchmarks/results/{Model}_results.txt and prints a formatted benchmark table
+# results.jl — reads benchmark_results/{Model}_results.txt and prints a formatted benchmark table
 # comparing ExaModelsPEtab + MadNLP on GPU (exagpu_*) and CPU (exacpu_*) against PEtab.jl +
-# Optim.IPNewton (petab_*). Also writes the report to Benchmarks/results.txt.
-#   julia --project=. Benchmarks/results.jl          # warm (SGM) solve times — DEFAULT
-#   julia --project=. Benchmarks/results.jl --cold   # cold first-run solve times instead
+# Optim.IPNewton (petab_*). Also writes the report to results_table.txt.
+#   julia --project=. benchmark_helpers/results.jl          # warm (SGM) solve times — DEFAULT
+#   julia --project=. benchmark_helpers/results.jl --cold   # cold first-run solve times instead
 
 using Printf
 
-const RESULTDIR  = joinpath(@__DIR__, "results")
-const REPORT_TXT = joinpath(@__DIR__, "results.txt")
+const RESULTDIR  = joinpath(@__DIR__, "..", "benchmark_results")
+const REPORT_TXT = joinpath(@__DIR__, "..", "results_table.txt")
 const USE_SGM    = !("--cold" in ARGS)
 
-include(joinpath(@__DIR__, "options.jl"))
+include(joinpath(@__DIR__, "..", "options.jl"))
 
-const ALL_MODELS = sort(EXA_SUPPORTED_MODELS)  # 20 (reported exa target set: continuous + PEtab-solved)
+const MODELS = BENCHMARK_MODELS  # the benchmarked set (already sorted)
 const SGM_N      = BENCH_SGM_N
 const SGM_SHIFT  = BENCH_SGM_SHIFT
 
@@ -136,7 +136,7 @@ const W_PETAB_INNER = W_CMPL + 1 + W_SOL + 2 + W_STAT                           
 
 # ─── build report ───────────────────────────────────────────────────────────────
 buf   = IOBuffer()
-all_d = [read_result(m) for m in ALL_MODELS]
+all_d = [read_result(m) for m in MODELS]
 
 major_hdr = @sprintf("%-*s | %s | %s | %s",
     W_NAME, "",
@@ -151,7 +151,7 @@ sub_hdr = @sprintf("%-*s | %*s %*s %*s  %*s %*s | %*s %*s %*s  %*s %*s | %*s %*s
 bar = "="^length(sub_hdr); sep = "-"^length(sub_hdr)
 
 println(buf, bar); println(buf, major_hdr); println(buf, sub_hdr); println(buf, sep)
-for m in ALL_MODELS
+for m in MODELS
     d = read_result(m)
     @printf(buf, "%-*s | %*s %*s %*s  %*s %*s | %*s %*s %*s  %*s %*s | %*s %*s  %*s\n",
         W_NAME, short_name(m),
@@ -167,8 +167,8 @@ exa_subopt(d) = madnlp_code(d,"exagpu_") in ("0S", "0AS")
 
 println(buf, "\nSUMMARY (ExaModelsPEtab target set: continuous + PEtab-solved)")
 @printf(buf, "  Target models          : %2d       (of %d; %d 'Possible Discontinuities', %d PEtab.jl failed compile)\n",
-        length(EXA_SUPPORTED_MODELS), length(BENCHMARK_MODELS), length(_POSSIBLE_DISCONTINUITIES), length(_PETAB_UNSOLVED))
-@printf(buf, "  ExaModels solved (GPU) : %2d / %2d  (status 0 + 0A, full/acceptable optimum)\n", count(exa_opt, all_d), length(ALL_MODELS))
+        length(BENCHMARK_MODELS), length(ALL_MODELS), length(EXCLUDED_MODELS), length(FAILED_MODELS))
+@printf(buf, "  ExaModels solved (GPU) : %2d / %2d  (status 0 + 0A, full/acceptable optimum)\n", count(exa_opt, all_d), length(MODELS))
 @printf(buf, "  Solved-but-suboptimal  : %2d       (0S / 0AS, converged but obj ≥+%.1f%% vs PEtab; excluded above)\n", count(exa_subopt, all_d), SUBOPT_GAP_PCT)
 
 println(buf, "")

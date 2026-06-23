@@ -3,7 +3,7 @@
 # Builds petab_examodel and solves it with MadNLP using the LiftedKKT (condensed-space) regime —
 # the same SparseCondensedKKTSystem + RelaxEquality config on both backends; only the linear solver
 # differs (GPU: CUDSS, CPU: MadNLP's default for the condensed system). Results are written to
-# Benchmarks/results/{Model}_results.txt under a backend-specific prefix so the two backends and the
+# benchmark_results/{Model}_results.txt under a backend-specific prefix so the two backends and the
 # PEtab results coexist in one file:
 #   BENCH_BACKEND=gpu (default) -> exagpu_*
 #   BENCH_BACKEND=cpu           -> exacpu_*
@@ -17,16 +17,15 @@
 # The run is resumable (terminal results are skipped); wrap with run_examodels.sh for watchdog restarts.
 #
 # Usage (GPU, strided one instance per GPU):
-#   julia --project=. -t 1 Benchmarks/run_examodels.jl <gpu_id> <num_instances> <instance_idx>
+#   julia --project=. -t 1 benchmark_helpers/run_examodels.jl <gpu_id> <num_instances> <instance_idx>
 # CPU (gpu_id arg ignored; run several instances to parallelize across cores):
-#   BENCH_BACKEND=cpu julia --project=. -t 1 Benchmarks/run_examodels.jl 0 <num_instances> <instance_idx>
+#   BENCH_BACKEND=cpu julia --project=. -t 1 benchmark_helpers/run_examodels.jl 0 <num_instances> <instance_idx>
 
 using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels
 
 # ─── CONFIGURABLE SETTINGS (single source of truth = options.jl) ────────────────
-const MODELDIR  = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
-const RESULTDIR = joinpath(@__DIR__, "results")
-include(joinpath(@__DIR__, "options.jl"))
+include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + model sets + BENCH_* config
+const RESULTDIR = joinpath(@__DIR__, "..", "benchmark_results")
 
 const K             = BENCH_K
 const TOL           = BENCH_TOL
@@ -57,9 +56,9 @@ solve_madnlp(model) = IS_GPU ?
 gpu_reclaim() = IS_GPU && (GC.gc(); CUDA.reclaim())
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Timed in-loop set = EXA_RERUN_INLOOP (options.jl); override via BENCH_SUBSET (comma-separated).
-const ALL_MODELS = haskey(ENV, "BENCH_SUBSET") ?
-    String.(split(ENV["BENCH_SUBSET"], ',')) : EXA_RERUN_INLOOP
+# Benchmarked set minus the shared warmup (Bruno, run separately via run_bruno.jl); override via BENCH_SUBSET.
+const RUN_MODELS = haskey(ENV, "BENCH_SUBSET") ?
+    String.(split(ENV["BENCH_SUBSET"], ',')) : filter(!=(BENCH_WARMUP_MODEL), BENCHMARK_MODELS)
 
 get_yaml(m) = begin
     d = joinpath(MODELDIR, m); isdir(d) || return nothing
@@ -294,7 +293,7 @@ function main()
     mkpath(RESULTDIR)
 
     # Convert in-progress sentinels from a prior killed run to terminal states (this backend only)
-    for m in ALL_MODELS
+    for m in RUN_MODELS
         d = read_result(result_path(m))
         if get(d, PFX*"compile_status", "") == "compiling"
             write_result(result_path(m), Dict(PFX*"compile_status" => "timeout", PFX*"compile_time" => string(COMPILE_LIMIT)))
@@ -305,7 +304,7 @@ function main()
         end
     end
 
-    mine = [m for (i, m) in enumerate(ALL_MODELS) if (i - 1) % ninst == idx]
+    mine = [m for (i, m) in enumerate(RUN_MODELS) if (i - 1) % ninst == idx]
     todo = filter(!exa_finished, mine)
     @info "instance $idx: $(length(mine)) models assigned, $(length(todo)) remaining"
     isempty(todo) && (@info "nothing to do"; return)
