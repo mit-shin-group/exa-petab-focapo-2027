@@ -18,7 +18,7 @@ const N_SGM_RERUNS  = 3
 const WARMUP_MODEL  = "Bruno_JExpBot2016"
 const TARGET        = "Bachmann_MSB2011"
 
-const MODELDIR  = joinpath(@__DIR__, "..", "Benchmark-Models")
+const MODELDIR  = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
 const RESULTDIR = joinpath(@__DIR__, "results")
 const RESULTFILE = joinpath(RESULTDIR, "Bachmann_MSB2011_K3_results.txt")
 

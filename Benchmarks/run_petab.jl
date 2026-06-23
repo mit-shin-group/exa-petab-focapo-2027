@@ -23,7 +23,7 @@ using PEtab, Optim
 # ─── CONFIGURABLE SETTINGS ────────────────────────────────────────────────────
 # ALL solver/benchmark settings live in options.jl (single source of truth, shared with
 # run_examodels.jl). Change them THERE, not here — below we only alias the BENCH_* constants.
-const MODELDIR  = joinpath(@__DIR__, "..", "Benchmark-Models")
+const MODELDIR  = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
 const RESULTDIR = joinpath(@__DIR__, "results")
 
 include(joinpath(@__DIR__, "options.jl"))  # model lists + BENCH_* config (TOL, SGM_N, limits, ...)

@@ -24,7 +24,7 @@
 using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels
 
 # ─── CONFIGURABLE SETTINGS (single source of truth = options.jl) ────────────────
-const MODELDIR  = joinpath(@__DIR__, "..", "Benchmark-Models")
+const MODELDIR  = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
 const RESULTDIR = joinpath(@__DIR__, "results")
 include(joinpath(@__DIR__, "options.jl"))
 

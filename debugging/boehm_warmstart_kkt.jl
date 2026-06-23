@@ -14,7 +14,7 @@ using Symbolics
 import OrdinaryDiffEq as ODE
 import SteadyStateDiffEq as SSDE
 
-const MODELDIR = joinpath(@__DIR__, "..", "Benchmark-Models")
+const MODELDIR = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
 const SRCDIR   = joinpath(@__DIR__, "..", "..", "src")
 for f in ("structs.jl","constants.jl","utils.jl","initialize.jl",
           "variables.jl","collocation.jl","continuity.jl","objective.jl","steadystate.jl","userfuncs.jl")

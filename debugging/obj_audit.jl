@@ -11,7 +11,7 @@ for f in ("structs.jl","constants.jl","utils.jl","initialize.jl",
           "variables.jl","collocation.jl","continuity.jl","objective.jl","steadystate.jl","userfuncs.jl")
     include(joinpath(SRCDIR, f))
 end
-const MODELDIR = joinpath(@__DIR__, "..", "Benchmark-Models")
+const MODELDIR = joinpath(@__DIR__, "..", "Benchmark-Models-PEtab")
 K = length(ARGS) >= 1 ? parse(Int, ARGS[1]) : 2
 # log/log10-transform models (suspect) + lin controls (Boehm/Crauste validated-good)
 models = length(ARGS) >= 2 ? ARGS[2:end] : [
