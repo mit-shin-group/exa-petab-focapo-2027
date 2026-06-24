@@ -5,3 +5,6 @@
 /benchmark_helpers/debugging/logs/
 /benchmark_helpers/debugging/archive/
 *.log
+
+# Fides (PythonCall/CondaPkg) generated conda env — large, regenerated on first use
+/.CondaPkg/

@@ -9,7 +9,7 @@
 #   julia --project=. -t 1 benchmark_helpers/run_bruno.jl Bruno_JExpBot2016 [gpu_id]
 #   BENCH_BACKEND=cpu julia --project=. -t 1 benchmark_helpers/run_bruno.jl Bruno_JExpBot2016
 
-using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, Optim, MadNLPHSL
+using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, Optim, MadNLPHSL, Fides
 
 # ─── CONFIGURABLE SETTINGS (single source of truth = options.jl) ──────────────────
 include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + RESULTDIR + model sets + BENCH_* config
@@ -28,6 +28,8 @@ const SGM_SHIFT     = BENCH_SGM_SHIFT
 const ACCEPT_TOL    = BENCH_ACCEPT_TOL
 const ACCEPT_ITER   = BENCH_ACCEPT_ITER
 const PETAB_SGM_N   = BENCH_SGM_N
+# Whether the configured PEtab optimizer is a Fides (Python) algorithm — derived from its type.
+const IS_FIDES      = BENCH_PETAB_OPTIMIZER() isa Fides.HessianUpdate
 
 const BACKEND = lowercase(get(ENV, "BENCH_BACKEND", "gpu"))
 const IS_GPU  = BACKEND != "cpu"
@@ -181,10 +183,12 @@ function bench_exa(m)
     @info "[$m] EXA done"
 end
 
-# ─── PEtab benchmark for the target (backend-independent; runs on the GPU pass) ──
-optim_opts() = Optim.Options(iterations=MAX_ITER, time_limit=SOLVE_LIMIT, g_tol=TOL,
-    f_reltol=BENCH_PETAB_F_RELTOL, allow_f_increases=true, successive_f_tol=BENCH_PETAB_SUCCESSIVE_FTOL,
-    show_trace=false, x_abstol=BENCH_PETAB_X_ABSTOL)
+# ─── PEtab benchmark for the target ──────────────────────────────────────────────
+# Per-tag optimizer options (mirrors run_petab.jl): default settings except the gradient tol
+# (BENCH_TOL) and the uniform wall/iteration caps. Optim ⇒ Optim.Options; Fides ⇒ FidesOptions.
+petab_options() = IS_FIDES ?
+    Fides.FidesOptions(gatol=TOL, maxiter=MAX_ITER, maxtime=SOLVE_LIMIT) :
+    Optim.Options(g_tol=TOL, iterations=MAX_ITER, time_limit=SOLVE_LIMIT, show_trace=false)
 
 function has_events(PEprob)
     cbs = PEprob.model_info.simulation_info.callbacks
@@ -212,7 +216,9 @@ function bench_petab(m)
     try
         t0 = time()
         PEprob = with_hard_deadline(PETAB_COMPILE_LIMIT) do
-            p  = PEtabODEProblem(PEtabModel(yaml)); x0 = get_x(p); np = length(x0)
+            p  = PEtabODEProblem(PEtabModel(yaml); hessian_method = BENCH_PETAB_HESSIAN)
+            x0 = get_x(p); np = length(x0)
+            # hess! prime is REQUIRED for the Fides BFGS tag (populates odesols_derivatives; see run_petab.jl).
             p.nllh(x0); p.grad!(zeros(np), x0); p.hess!(zeros(np, np), x0); p
         end
         write_result(rp, Dict("petab_compile_status" => "ok", "petab_compile_time" => round(time() - t0; digits=2),
@@ -221,19 +227,31 @@ function bench_petab(m)
         write_result(rp, Dict("petab_compile_status" => "error", "petab_error" => sprint(showerror, e))); return
     end
 
-    @info "[$m] PEtab solving (Optim.IPNewton)..."
+    @info "[$m] PEtab solving ($(BENCH_TAG))..."
     write_result(rp, Dict("petab_solve_status" => "solving"))
     try
         t0 = time()
-        res = with_hard_deadline(SOLVE_LIMIT + 600.0) do; calibrate(PEprob, get_x(PEprob), BENCH_OPTIMIZER(); options=optim_opts()); end
+        res = with_hard_deadline(SOLVE_LIMIT + 600.0) do; calibrate(PEprob, get_x(PEprob), BENCH_PETAB_OPTIMIZER(); options=petab_options()); end
+        # Backend-aware convergence (mirrors run_petab.jl): Optim per-criterion booleans vs Fides retcode.
         gconv = ""; gres = ""; fconv = ""; xconv = ""
-        try; o = res.original
-            gconv = string(Optim.g_converged(o)); gres = string(Optim.g_residual(o))
-            fconv = string(Optim.f_converged(o)); xconv = string(Optim.x_converged(o)); catch; end
+        optimum_found = "false"; solve_err = !isfinite(res.fmin)
+        if IS_FIDES
+            rc = res.converged
+            optimum_found = string(rc in (:GTOL, :FTOL, :XTOL))
+            gconv = string(rc === :GTOL); fconv = string(rc === :FTOL); xconv = string(rc === :XTOL)
+            solve_err |= rc in (:DID_NOT_RUN, :NOT_FINITE, :Optimisation_failed, :Optmisation_failed)
+        else
+            optimum_found = string(res.converged === true)
+            solve_err |= (res.converged === :Optimisation_failed)
+            try; o = res.original
+                gconv = string(Optim.g_converged(o)); gres = string(Optim.g_residual(o))
+                fconv = string(Optim.f_converged(o)); xconv = string(Optim.x_converged(o)); catch; end
+        end
         write_result(rp, Dict(
-            "petab_solve_status"  => (res.converged === :Optimisation_failed || !isfinite(res.fmin)) ? "error" : "ok",
+            "petab_solve_status"  => solve_err ? "error" : "ok",
             "petab_solve_time"    => round(time() - t0; digits=2), "petab_objective" => res.fmin,
-            "petab_iter"          => res.niterations, "petab_optimum_found" => string(res.converged === true),
+            "petab_iter"          => res.niterations, "petab_optimum_found" => optimum_found,
+            "petab_retcode"       => string(res.converged),
             "petab_gconverged"    => gconv, "petab_gresidual" => gres,
             "petab_fconverged"    => fconv, "petab_xconverged" => xconv,
         ))
@@ -248,7 +266,7 @@ function bench_petab(m)
             @info "[$m] PEtab SGM solve $i/$PETAB_SGM_N ..."
             try
                 t0 = time()
-                calibrate(PEprob, get_x(PEprob), BENCH_OPTIMIZER(); options=optim_opts())   # warm rerun — timed bare for a clean SGM
+                calibrate(PEprob, get_x(PEprob), BENCH_PETAB_OPTIMIZER(); options=petab_options())   # warm rerun — timed bare for a clean SGM
                 push!(ptimes, round(time() - t0; digits=2))
             catch e
                 @error "[$m] PEtab SGM solve $i failed" exception=(e, catch_backtrace())
@@ -278,7 +296,10 @@ function warmup_petab()
     yaml = get_yaml(WARMUP_MODEL); yaml === nothing && return
     @info "PEtab warmup: JIT calibrate on $WARMUP_MODEL ..."
     try
-        wp = PEtabODEProblem(PEtabModel(yaml)); calibrate(wp, get_x(wp), BENCH_OPTIMIZER(); options=Optim.Options(iterations=3))
+        wp = PEtabODEProblem(PEtabModel(yaml); hessian_method = BENCH_PETAB_HESSIAN)
+        wx = get_x(wp); wp.hess!(zeros(length(wx), length(wx)), wx)   # hess! prime (Fides BFGS cache fix)
+        wopts = IS_FIDES ? Fides.FidesOptions(maxiter=3) : Optim.Options(iterations=3)
+        calibrate(wp, wx, BENCH_PETAB_OPTIMIZER(); options=wopts)
         @info "PEtab warmup done"
     catch e; @warn "PEtab warmup failed" exception=(e, catch_backtrace()); end
 end
@@ -290,19 +311,23 @@ function main()
     mkpath(RESULTDIR)
     @info "run_bruno: target=$TARGET warmup=$WARMUP_MODEL backend=$BACKEND prefix=$PFX"
 
-    # BENCH_PETAB_ONLY=1 re-runs only the petab_ (PEtab) side, leaving exa results untouched.
+    # Run only the side the current tag covers (BENCH_INCLUDE_* in options.jl): exa runs for the
+    # matching backend (GPU tag ⇒ gpu pass, CPUma* ⇒ cpu pass); PEtab runs for the optimizer tags.
+    # The tags are mutually exclusive, so a given invocation does exactly one side. Legacy
+    # BENCH_PETAB_ONLY=1 still forces the PEtab-only side.
     petab_only = get(ENV, "BENCH_PETAB_ONLY", "0") == "1"
+    run_exa = !petab_only && ((IS_GPU && BENCH_INCLUDE_EXA_GPU) || (!IS_GPU && BENCH_INCLUDE_EXA_CPU))
+    run_pet = petab_only || BENCH_INCLUDE_PETAB
 
-    if !petab_only
+    if run_exa
         warmup_exa()
         bench_exa(TARGET)
     end
-
-    if IS_GPU || petab_only   # PEtab is backend-independent — run it only on the GPU pass (or petab-only)
+    if run_pet
         warmup_petab()
         bench_petab(TARGET)
     end
-    @info "run_bruno complete"
+    @info "run_bruno complete (exa=$run_exa petab=$run_pet)"
 end
 
 main()

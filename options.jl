@@ -9,9 +9,24 @@
 # ── EXPERIMENT TRACKING ──────────────────────────────────────────────────────────
 # Each run reads/writes per-model results + a _config.toml snapshot under
 # benchmark_results/benchmark_results_<tag>/; the tag also selects which run results_table.jl /
-# results_plot.jl report.
-const BENCH_TAG = ""   # Provide a ::String benchmark results tag for the configured run.
+# results_plot.jl report. BENCH_TAG is just a label for THIS run — configure the run by setting the
+# flags/settings below, then give it a tag. Keep ONE backend included per run so its solve timing is
+# uncontended; the assembled paper reference (tag "focapo") is built by results_table.jl from the
+# separate runs. Typical configurations and the tag we file them under:
+#   GPU         : INCLUDE_EXA_GPU=true                                          (CUDSS)
+#   CPUma27     : INCLUDE_EXA_CPU=true,  BENCH_CPU_SOLVER = Ma27Solver          (HSL ma27)
+#   CPUma57/97  : INCLUDE_EXA_CPU=true,  BENCH_CPU_SOLVER = Ma57Solver/Ma97Solver
+#   IPNewton    : INCLUDE_PETAB=true,    OPTIMIZER = Optim.IPNewton(),      HESSIAN = :ForwardDiff
+#   GaussNewton : INCLUDE_PETAB=true,    OPTIMIZER = Fides.CustomHessian(), HESSIAN = :GaussNewton
+#   BFGS        : INCLUDE_PETAB=true,    OPTIMIZER = Fides.BFGS(),          HESSIAN = :GaussNewton
+const BENCH_TAG = "GPU"   # ::String label for this run's results dir.
+
 const RESULTDIR = joinpath(@__DIR__, "benchmark_results", "benchmark_results_$(BENCH_TAG)")
+
+# Which backend(s) this run benchmarks (run_benchmarks.sh gates each stage on these). Keep one true.
+const BENCH_INCLUDE_EXA_GPU = true
+const BENCH_INCLUDE_EXA_CPU = false
+const BENCH_INCLUDE_PETAB   = false
 
 # ── 1. SHARED (both backends) ────────────────────────────────────────────────────
 const BENCH_TOL           = 1e-6           # convergence tol (MadNLP tol == Optim g_tol)
@@ -37,12 +52,21 @@ BENCH_FIXED_VAR_TREATMENT() = MadNLP.RelaxBound
 BENCH_GPU_SOLVER() = MadNLPGPU.CUDSSSolver   # GPU
 BENCH_CPU_SOLVER() = MadNLPHSL.Ma27Solver    # CPU (HSL: Ma27Solver | Ma57Solver | Ma97Solver)
 
-# ── 3. PEtab.jl / Optim ──────────────────────────────────────────────────────────
-BENCH_OPTIMIZER() = Optim.IPNewton()                   # optimizer passed to PEtab.calibrate
-const BENCH_PETAB_F_RELTOL          = 0.0               # Optim.Options f_reltol
-const BENCH_PETAB_SUCCESSIVE_FTOL   = 2                 # IPNewton successive_f_tol
-const BENCH_PETAB_X_ABSTOL          = 0.0               # Optim.Options x_abstol
-const BENCH_PETAB_ALLOW_F_INCREASES = true              # IPNewton allow_f_increases
+# ── 3. PEtab.jl / Optim+Fides ─────────────────────────────────────────────────────
+# The optimizer object passed to PEtab.calibrate — set it directly (the run script reads its TYPE to
+# choose FidesOptions vs Optim.Options, so no extra flag). One of PEtab.jl's recommended algorithms:
+#   Optim.IPNewton()         (small models)   — pair with BENCH_PETAB_HESSIAN = :ForwardDiff
+#   Fides.CustomHessian()    (medium models)  — pair with BENCH_PETAB_HESSIAN = :GaussNewton
+#   Fides.BFGS()             (large models)   — pair with BENCH_PETAB_HESSIAN = :GaussNewton
+# Default optimizer settings except the gradient-convergence tol (relaxed to BENCH_TOL) and the
+# wall/iteration caps. Lazy accessor — the run script `using`s both Optim and Fides.
+BENCH_PETAB_OPTIMIZER() = Optim.IPNewton()
+# PEtabODEProblem Hessian method (:ForwardDiff full Hessian, or :GaussNewton approximation). BFGS
+# self-approximates the Hessian during the solve, but PEtab's Fides extension omits the cache-priming
+# `nllh` call it does for CustomHessian, so BFGS's `nllh_grad` objective hits an unpopulated
+# `odesols_derivatives` cache (KeyError). Setting :GaussNewton and priming `hess!` once at compile
+# time (run_petab.jl) populates that cache and fixes it — a one-time cost; the solve stays Hessian-free.
+const BENCH_PETAB_HESSIAN = :ForwardDiff
 
 # ── MODEL SETS ───────────────────────────────────────────────────────────────────
 const MODELDIR   = joinpath(@__DIR__, "Benchmark-Models-PEtab")
