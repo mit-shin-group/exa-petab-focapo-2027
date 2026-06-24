@@ -798,7 +798,9 @@ version = "0.11.1"
 
 [[deps.ExaModelsPEtab]]
 deps = ["ExaModels", "LinearAlgebra", "ModelingToolkitBase", "OrdinaryDiffEq", "PEtab", "Symbolics"]
-path = "ExaModelsPEtab"
+git-tree-sha1 = "7639072e880a430274bfe43fc707f7318f29e060"
+repo-rev = "v0.1.0"
+repo-url = "https://github.com/mit-shin-group/ExaModelsPEtab.jl"
 uuid = "449f6601-3844-48f4-990d-d57d890903df"
 version = "0.1.0-DEV"
 
