@@ -5,14 +5,14 @@
 # Three series (legend order): MadNLP (GPU), MadNLP (CPU), IPNewton (CPU).
 #
 # Usage: julia --project=. benchmark_helpers/results_plot.jl
-#   reads benchmark_results_<BENCH_RUN> (set in options.jl); writes results_plot.png at repo root.
+#   reads benchmark_results_<BENCH_TAG> (set in options.jl); writes results_plot.png at repo root.
 
 using Plots
 using Plots.PlotMeasures   # mm units for plot margins
 gr()
 
 const HERE      = @__DIR__
-include(joinpath(HERE, "..", "options.jl"))   # RESULTDIR (benchmark_results_<BENCH_RUN>), model sets, shifted_geomean, BENCH_*
+include(joinpath(HERE, "..", "options.jl"))   # RESULTDIR (benchmark_results_<BENCH_TAG>), model sets, shifted_geomean, BENCH_*
 
 function read_result(m)
     d = Dict{String,String}(); p = joinpath(RESULTDIR, "$(m)_results.txt")

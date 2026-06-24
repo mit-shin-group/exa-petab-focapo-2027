@@ -10,7 +10,7 @@
 #
 # For each solve we also store <prefix>petab_obj := PEtab's own objective evaluated at the ExaModels
 # optimal parameters (res.solution[1:Np], which live on PEtab's estimation scale) — the fair,
-# same-objective value behind results.jl's GAP(%) column.
+# same-objective value behind results_table.jl's GAP(%) column.
 #
 # Compilation timing splits into Phase 1 (PEtab setup + ODE presolve) and Phase 2 (ExaModels build);
 # both are stored, and after a converged first solve N_SGM_RERUNS warm reruns give the SGM solve time.
@@ -43,13 +43,12 @@ const BACKEND = lowercase(get(ENV, "BENCH_BACKEND", "gpu"))
 const IS_GPU  = BACKEND != "cpu"
 const PFX     = IS_GPU ? "exagpu_" : "exacpu_"
 
-# LiftedKKT (condensed-space) MadNLP regime — same on both backends; only the linear solver differs:
-# GPU = CUDSS (MadNLPGPU); CPU = HSL (MadNLPHSL, BENCH_CPU_SOLVER ∈ {ma27, ma57, ma97}).
-const KKT_OPTS = (kkt_system = getproperty(MadNLP, BENCH_KKT_SYSTEM),
-                  equality_treatment = getproperty(MadNLP, BENCH_EQUALITY_TREATMENT),
-                  fixed_variable_treatment = getproperty(MadNLP, BENCH_FIXED_VAR_TREATMENT))
-const LINEAR_SOLVER = IS_GPU ? getproperty(MadNLPGPU, BENCH_GPU_SOLVER) :
-                               getproperty(MadNLPHSL, Symbol(uppercasefirst(String(BENCH_CPU_SOLVER)), "Solver"))
+# LiftedKKT (condensed-space) MadNLP regime — same on both backends; only the linear solver differs
+# (GPU vs CPU). All passed straight through from options.jl.
+const KKT_OPTS = (kkt_system = BENCH_KKT_SYSTEM(),
+                  equality_treatment = BENCH_EQUALITY_TREATMENT(),
+                  fixed_variable_treatment = BENCH_FIXED_VAR_TREATMENT())
+const LINEAR_SOLVER = IS_GPU ? BENCH_GPU_SOLVER() : BENCH_CPU_SOLVER()
 solve_madnlp(model) = madnlp(model; tol=TOL, acceptable_tol=ACCEPT_TOL, acceptable_iter=ACCEPT_ITER,
     max_iter=MAX_ITER, max_wall_time=SOLVE_LIMIT, linear_solver=LINEAR_SOLVER, KKT_OPTS...)
 gpu_reclaim() = IS_GPU && (GC.gc(); CUDA.reclaim())
@@ -156,7 +155,7 @@ function run_sgm_reruns(m, rp, model)
         @info "[$m] SGM solve $i/$N_SGM_RERUNS ..."
         try
             t0 = time()
-            with_hard_deadline(SOLVE_LIMIT + 3600.0) do; solve_madnlp(model); end
+            solve_madnlp(model)   # warm rerun (model already converged) — timed bare so the watchdog spawn doesn't inflate the SGM
             push!(solve_times, round(time() - t0; digits=2))
         catch e
             @error "[$m] SGM solve $i failed" exception=(e, catch_backtrace())

@@ -32,11 +32,10 @@ const PETAB_SGM_N   = BENCH_SGM_N
 const BACKEND = lowercase(get(ENV, "BENCH_BACKEND", "gpu"))
 const IS_GPU  = BACKEND != "cpu"
 const PFX     = IS_GPU ? "exagpu_" : "exacpu_"
-const KKT_OPTS = (kkt_system = getproperty(MadNLP, BENCH_KKT_SYSTEM),
-                  equality_treatment = getproperty(MadNLP, BENCH_EQUALITY_TREATMENT),
-                  fixed_variable_treatment = getproperty(MadNLP, BENCH_FIXED_VAR_TREATMENT))
-const LINEAR_SOLVER = IS_GPU ? getproperty(MadNLPGPU, BENCH_GPU_SOLVER) :
-                               getproperty(MadNLPHSL, Symbol(uppercasefirst(String(BENCH_CPU_SOLVER)), "Solver"))
+const KKT_OPTS = (kkt_system = BENCH_KKT_SYSTEM(),
+                  equality_treatment = BENCH_EQUALITY_TREATMENT(),
+                  fixed_variable_treatment = BENCH_FIXED_VAR_TREATMENT())
+const LINEAR_SOLVER = IS_GPU ? BENCH_GPU_SOLVER() : BENCH_CPU_SOLVER()
 solve_madnlp(model) = madnlp(model; tol=TOL, acceptable_tol=ACCEPT_TOL, acceptable_iter=ACCEPT_ITER,
     max_iter=MAX_ITER, max_wall_time=SOLVE_LIMIT, linear_solver=LINEAR_SOLVER, KKT_OPTS...)
 gpu_reclaim() = IS_GPU && (GC.gc(); CUDA.reclaim())
@@ -226,7 +225,7 @@ function bench_petab(m)
     write_result(rp, Dict("petab_solve_status" => "solving"))
     try
         t0 = time()
-        res = with_hard_deadline(SOLVE_LIMIT + 600.0) do; calibrate(PEprob, get_x(PEprob), Optim.IPNewton(); options=optim_opts()); end
+        res = with_hard_deadline(SOLVE_LIMIT + 600.0) do; calibrate(PEprob, get_x(PEprob), BENCH_OPTIMIZER(); options=optim_opts()); end
         gconv = ""; gres = ""; fconv = ""; xconv = ""
         try; o = res.original
             gconv = string(Optim.g_converged(o)); gres = string(Optim.g_residual(o))
@@ -249,7 +248,7 @@ function bench_petab(m)
             @info "[$m] PEtab SGM solve $i/$PETAB_SGM_N ..."
             try
                 t0 = time()
-                with_hard_deadline(SOLVE_LIMIT + 600.0) do; calibrate(PEprob, get_x(PEprob), Optim.IPNewton(); options=optim_opts()); end
+                calibrate(PEprob, get_x(PEprob), BENCH_OPTIMIZER(); options=optim_opts())   # warm rerun — timed bare for a clean SGM
                 push!(ptimes, round(time() - t0; digits=2))
             catch e
                 @error "[$m] PEtab SGM solve $i failed" exception=(e, catch_backtrace())
@@ -279,7 +278,7 @@ function warmup_petab()
     yaml = get_yaml(WARMUP_MODEL); yaml === nothing && return
     @info "PEtab warmup: JIT calibrate on $WARMUP_MODEL ..."
     try
-        wp = PEtabODEProblem(PEtabModel(yaml)); calibrate(wp, get_x(wp), Optim.IPNewton(); options=Optim.Options(iterations=3))
+        wp = PEtabODEProblem(PEtabModel(yaml)); calibrate(wp, get_x(wp), BENCH_OPTIMIZER(); options=Optim.Options(iterations=3))
         @info "PEtab warmup done"
     catch e; @warn "PEtab warmup failed" exception=(e, catch_backtrace()); end
 end

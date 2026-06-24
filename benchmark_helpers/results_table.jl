@@ -1,15 +1,15 @@
-# results.jl — reads benchmark_results/{Model}_results.txt and prints a formatted benchmark table
+# results_table.jl — reads benchmark_results/{Model}_results.txt and prints a formatted benchmark table
 # comparing ExaModelsPEtab + MadNLP on GPU (exagpu_*) and CPU (exacpu_*) against PEtab.jl +
 # Optim.IPNewton (petab_*). Also writes the report to results_table.txt.
-#   julia --project=. benchmark_helpers/results.jl          # warm (SGM) solve times — DEFAULT
-#   julia --project=. benchmark_helpers/results.jl --cold   # cold first-run solve times instead
+#   julia --project=. benchmark_helpers/results_table.jl          # warm (SGM) solve times — DEFAULT
+#   julia --project=. benchmark_helpers/results_table.jl --cold   # cold first-run solve times instead
 
 using Printf
 
 const REPORT_TXT = joinpath(@__DIR__, "..", "results_table.txt")
 const USE_SGM    = !("--cold" in ARGS)
 
-include(joinpath(@__DIR__, "..", "options.jl"))   # provides RESULTDIR (benchmark_results_<BENCH_RUN>)
+include(joinpath(@__DIR__, "..", "options.jl"))   # provides RESULTDIR (benchmark_results_<BENCH_TAG>)
 
 const MODELS = BENCHMARK_MODELS  # the benchmarked set (already sorted)
 const SGM_N      = BENCH_SGM_N

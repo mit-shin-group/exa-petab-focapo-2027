@@ -1,15 +1,21 @@
 # Options for running the benchmark scripts
 
+# ── SOLVERS / OPTIMIZER ──────────────────────────────────────────────────────────
+# These are zero-arg accessors, so including this file pulls in NO packages — each resolves
+# (against the package the calling run script already `using`d) only when called. So PEtab-only
+# and reporting scripts never load the GPU/MadNLP stack. To use a different optimizer/solver, write
+# its constructor in the accessor; the run script that calls it must load the relevant package.
+
 # ── EXPERIMENT TRACKING ──────────────────────────────────────────────────────────
-# Each run reads/writes per-model results + a config snapshot under benchmark_results_<n>/.
-# Set the run number here (or via the BENCH_RUN env var); run 0 is the reference snapshot.
-# results.jl / results_plot.jl read this same run, so set it to choose which run to report.
-const BENCH_RUN = parse(Int, get(ENV, "BENCH_RUN", "0"))
-const RESULTDIR = joinpath(@__DIR__, "benchmark_results", "benchmark_results_$(BENCH_RUN)")
+# Each run reads/writes per-model results + a _config.toml snapshot under
+# benchmark_results/benchmark_results_<tag>/; the tag also selects which run results_table.jl /
+# results_plot.jl report.
+const BENCH_TAG = ""   # Provide a ::String benchmark results tag for the configured run.
+const RESULTDIR = joinpath(@__DIR__, "benchmark_results", "benchmark_results_$(BENCH_TAG)")
 
 # ── 1. SHARED (both backends) ────────────────────────────────────────────────────
 const BENCH_TOL           = 1e-6           # convergence tol (MadNLP tol == Optim g_tol)
-const BENCH_SOLVE_LIMIT   = 7200.0         # solve wall cap [s] (MadNLP max_wall_time / Optim time_limit)
+const BENCH_SOLVE_LIMIT   = 3600.0         # solve wall cap [s] (MadNLP max_wall_time / Optim time_limit)
 const BENCH_COMPILE_LIMIT = 3600.0         # build/compile wall cap [s] (exa build & PEtab compile)
 const BENCH_MAX_ITER      = 100_000_000    # max solver iterations (wall time is the real cap)
 const BENCH_SGM_N         = 5              # warm reruns for the shifted-geomean solve time (0 disables)
@@ -23,20 +29,20 @@ shifted_geomean(times, δ = BENCH_SGM_SHIFT) = round(exp(sum(t -> log(t + δ), t
 const BENCH_K           = 4                # collocation points per mesh interval
 const BENCH_ACCEPT_TOL  = 1e-4             # MadNLP acceptable_tol (ε-optimal fallback)
 const BENCH_ACCEPT_ITER = 15               # iters at acceptable_tol before accepting
-# LiftedKKT (condensed-space) regime — resolved against MadNLP in the run scripts.
-const BENCH_KKT_SYSTEM          = :SparseCondensedKKTSystem
-const BENCH_EQUALITY_TREATMENT  = :RelaxEquality
-const BENCH_FIXED_VAR_TREATMENT = :RelaxBound
-# Linear solver: GPU = CUDSS (MadNLPGPU); CPU = HSL via MadNLPHSL (ma27 | ma57 | ma97).
-const BENCH_GPU_SOLVER  = :CUDSSSolver
-const BENCH_CPU_SOLVER  = Symbol(get(ENV, "BENCH_CPU_SOLVER", "ma27"))
+# LiftedKKT (condensed-space) regime — passed straight through as madnlp kwargs.
+BENCH_KKT_SYSTEM()          = MadNLP.SparseCondensedKKTSystem
+BENCH_EQUALITY_TREATMENT()  = MadNLP.RelaxEquality
+BENCH_FIXED_VAR_TREATMENT() = MadNLP.RelaxBound
+# Linear solver (madnlp `linear_solver`):
+BENCH_GPU_SOLVER() = MadNLPGPU.CUDSSSolver   # GPU
+BENCH_CPU_SOLVER() = MadNLPHSL.Ma27Solver    # CPU (HSL: Ma27Solver | Ma57Solver | Ma97Solver)
 
 # ── 3. PEtab.jl / Optim ──────────────────────────────────────────────────────────
-const BENCH_OPTIMIZER               = :IPNewton  # Optim optimizer (g_tol/time_limit/iterations come from §1)
-const BENCH_PETAB_F_RELTOL          = 0.0        # Optim.Options f_reltol
-const BENCH_PETAB_SUCCESSIVE_FTOL   = 2          # IPNewton successive_f_tol
-const BENCH_PETAB_X_ABSTOL          = 0.0        # Optim.Options x_abstol
-const BENCH_PETAB_ALLOW_F_INCREASES = true       # IPNewton allow_f_increases
+BENCH_OPTIMIZER() = Optim.IPNewton()                   # optimizer passed to PEtab.calibrate
+const BENCH_PETAB_F_RELTOL          = 0.0               # Optim.Options f_reltol
+const BENCH_PETAB_SUCCESSIVE_FTOL   = 2                 # IPNewton successive_f_tol
+const BENCH_PETAB_X_ABSTOL          = 0.0               # Optim.Options x_abstol
+const BENCH_PETAB_ALLOW_F_INCREASES = true              # IPNewton allow_f_increases
 
 # ── MODEL SETS ───────────────────────────────────────────────────────────────────
 const MODELDIR   = joinpath(@__DIR__, "Benchmark-Models-PEtab")

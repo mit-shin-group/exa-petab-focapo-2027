@@ -8,25 +8,29 @@
 #   4. Bruno_JExpBot2016                     (shared JIT-warmup model, benchmarked separately)
 # then regenerates the report + figure.
 #
-# Per-model results + a config.toml snapshot -> benchmark_results/benchmark_results_<BENCH_RUN>/
-# (resumable: terminal results are skipped). The run number is set in options.jl (BENCH_RUN); run 0 is the reference.
+# Per-model results + a _config.toml snapshot -> benchmark_results/benchmark_results_<BENCH_TAG>/
+# (resumable: terminal results are skipped). The run tag is set in options.jl (BENCH_TAG); focapo is the paper reference.
 # Final outputs for the selected run -> results_table.txt , results_plot.png  (repo root).
 # ALL settings (tolerances, limits, K, the CPU HSL solver, ...) live in options.jl.
 #
-#   bash run_benchmarks.sh                  # full suite (GPU auto-detected)
-#   BENCH_CPU_SOLVER=ma57 bash run_benchmarks.sh   # swap the CPU HSL solver
-#   CPU_INST=8 bash run_benchmarks.sh       # CPU exa parallelism (default 4)
+#   bash run_benchmarks.sh                  # full suite (GPU auto-detected); solvers/tag set in options.jl
+#   CPU_INST=4 bash run_benchmarks.sh       # opt into parallel exa-CPU (default 1 = serial)
+#
+# Timed solves run SERIALLY by default (PEtab PAR=1, exa-CPU CPU_INST=1, exa-GPU 1 instance) so the
+# CPU timings are uncontended and the ExaModels-vs-PEtab comparison is fair. Raise the knobs for
+# throughput at the cost of timing accuracy.
 set -u
 cd "$(dirname "$0")"
 HELP=benchmark_helpers
 LOG="$HELP/debugging/logs"
 
-CPU_INST=${CPU_INST:-4}
-RUN=$(julia --project=. -e 'include("options.jl"); print(BENCH_RUN)')   # experiment number (options.jl / BENCH_RUN env)
+CPU_INST=${CPU_INST:-1}   # serial timed CPU solves by default (fair, uncontended)
+TAG=$(grep -E '^const BENCH_TAG' options.jl | sed -E 's/.*"([^"]*)".*/\1/')   # run tag (from options.jl)
+[ -n "$TAG" ] || { echo "[run_benchmarks] Set BENCH_TAG (a non-empty string) in options.jl first."; exit 1; }
 mkdir -p "$LOG"
-julia --project=. "$HELP/snapshot_options.jl"          # creates benchmark_results/benchmark_results_$RUN + its config.toml
+julia --project=. "$HELP/snapshot_options.jl"          # creates benchmark_results/benchmark_results_$TAG + its _config.toml
 GPU=$(julia --project=. -e 'using CUDA; print(CUDA.functional())' 2>/dev/null || echo false)
-echo "[run_benchmarks] $(date)  RUN=$RUN  GPU=$GPU  CPU_INST=$CPU_INST  CPU_SOLVER=${BENCH_CPU_SOLVER:-ma27}"
+echo "[run_benchmarks] $(date)  TAG=$TAG  GPU=$GPU  CPU_INST=$CPU_INST  (solvers in options.jl / _config.toml)"
 
 # watchdog-style retry: a model's hard-deadline self-kill exits the worker non-zero (esp. the GPU
 # cuDSS hang); just resume — the worker skips already-terminal models. Mirrors run_examodels.sh.
@@ -34,17 +38,17 @@ retry() { local n=$1; shift; for a in $(seq 1 "$n"); do "$@" && return 0; echo "
 
 # ── 1. PEtab.jl baseline (CPU) ──────────────────────────────────────────────────
 echo "[1/5] PEtab.jl baseline ..."
-bash "$HELP/run_petab.sh"
+bash "$HELP/run_petab.sh" 1   # PAR=1: serial, uncontended PEtab solve timing
 
 # ── 2. ExaModels + MadNLP, GPU (CUDSS) ──────────────────────────────────────────
 if [ "$GPU" = true ]; then
     echo "[2/5] ExaModels GPU ..."
-    bash "$HELP/run_examodels.sh"
+    bash "$HELP/run_examodels.sh" 1   # NINST=1: single GPU instance, uncontended timing
 else
     echo "[2/5] ExaModels GPU SKIPPED (no functional GPU)"
 fi
 
-# ── 3. ExaModels + MadNLP, CPU (HSL) — parallel instances strided over the model set ─
+# ── 3. ExaModels + MadNLP, CPU (HSL) — CPU_INST instances strided over the model set (default 1 = serial) ─
 echo "[3/5] ExaModels CPU (HSL) x$CPU_INST ..."
 for idx in $(seq 0 $((CPU_INST - 1))); do
     ( retry 100 env BENCH_BACKEND=cpu julia --project=. -t 1 \
@@ -61,7 +65,7 @@ retry 100 env BENCH_BACKEND=cpu julia --project=. -t 1 "$HELP/run_bruno.jl" Brun
 
 # ── 5. Report + figure ──────────────────────────────────────────────────────────
 echo "[5/5] table + figure ..."
-julia --project=. "$HELP/results.jl"
+julia --project=. "$HELP/results_table.jl"
 julia --project=. "$HELP/results_plot.jl"
 
 echo "[run_benchmarks] $(date) DONE -> results_table.txt , results_plot.png"

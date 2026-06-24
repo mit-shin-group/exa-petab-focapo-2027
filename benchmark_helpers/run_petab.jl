@@ -111,9 +111,7 @@ function run_petab_sgm(rp, PEprob)
         @info "[petab SGM] solve $i/$N_SGM_RERUNS ..."
         try
             t0 = time()
-            with_hard_deadline(SOLVE_LIMIT + 600.0) do
-                calibrate(PEprob, get_x(PEprob), Optim.IPNewton(); options=optim_opts())
-            end
+            calibrate(PEprob, get_x(PEprob), BENCH_OPTIMIZER(); options=optim_opts())   # warm rerun — timed bare (no watchdog) for a clean SGM
             push!(solve_times, round(time() - t0; digits=2))
         catch e
             @error "[petab SGM] solve $i failed" exception=(e, catch_backtrace())
@@ -165,7 +163,7 @@ function run_worker(m)
         wy = get_yaml(WARMUP_MODEL)
         if wy !== nothing
             wp = PEtabODEProblem(PEtabModel(wy))
-            calibrate(wp, get_x(wp), Optim.IPNewton();
+            calibrate(wp, get_x(wp), BENCH_OPTIMIZER();
                       options=Optim.Options(iterations=3))
         end
     catch; end
@@ -198,7 +196,7 @@ function run_worker(m)
     try
         t0 = time()
         res = with_hard_deadline(SOLVE_LIMIT + 600.0) do
-            calibrate(PEprob, get_x(PEprob), Optim.IPNewton(); options=optim_opts())
+            calibrate(PEprob, get_x(PEprob), BENCH_OPTIMIZER(); options=optim_opts())
         end
         # Distinguish a TRUE first-order-stationary stop (gradient criterion met) from an
         # objective-plateau/step stop with a nonzero gradient: Optim's `converged` is x||f||g,

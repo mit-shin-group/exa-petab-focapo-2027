@@ -21,7 +21,7 @@
 #   BENCH_SUBSET=Zheng_PNAS2012 bash benchmark_helpers/run_examodels.sh   # run an ad-hoc subset
 set -u
 cd "$(dirname "$0")/.."
-RD=$(julia --project=. -e 'include("options.jl"); print(RESULTDIR)')
+RD=benchmark_results/benchmark_results_$(grep -E '^const BENCH_TAG' options.jl | sed -E 's/.*"([^"]*)".*/\1/')
 LD=benchmark_helpers/debugging/logs
 mkdir -p "$RD" "$LD"
 NINST=${1:-2}          # number of GPU instances: 2 = strided across GPU 0+1 (default), 1 = single-GPU

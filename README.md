@@ -1,30 +1,40 @@
 # exa-petab-focapo-2026
-This repository stores the scripts for reproducing the benchmark results in "REVISITING SIMULTANEOUS METHODS FOR DYNAMIC OPTIMIZATION IN THE GPU ERA" by Joseph W. Choi and Sungho Shin.
+This repository contains the scripts for reproducing the benchmark results in "REVISITING SIMULTANEOUS METHODS FOR DYNAMIC OPTIMIZATION IN THE GPU ERA" by Joseph W. Choi and Sungho Shin.
 
-## How to run the script?
+## How to run the benchmark
 First, install Julia (we recommend [juliaup](https://github.com/JuliaLang/juliaup)).
 
-The benchmark assumes an NVIDIA GPU — the GPU pass uses CUDA + CUDSS. Without one, the GPU columns are skipped and the rest of the suite still runs.
+The GPU pass requires an NVIDIA GPU for CUDA + CUDSS. If a compatible GPU is not available, the GPU columns are skipped and the rest of the suite still runs.
 
 The CPU solver uses the HSL linear solvers through `MadNLPHSL`. The default `ma27` works out of the box from the freely-redistributable HSL subset bundled by `HSL_jll`. To benchmark with `ma57`/`ma97` instead (set `BENCH_CPU_SOLVER` in `options.jl`), you additionally need a full [libHSL](https://licences.stfc.ac.uk/product/libhsl) build; point the project at it before instantiating:
 ```
 $ julia --project -e 'import Pkg; Pkg.develop(path="path/to/HSL_jll"); Pkg.instantiate()'
 ```
 
-Otherwise, just instantiate the pinned dependencies and run:
+Otherwise, instantiate the pinned dependencies and run:
 ```
 $ julia --project -e 'import Pkg; Pkg.instantiate()'
 $ bash run_benchmarks.sh
 ```
-This runs the full suite and writes `results_table.txt` and `results_plot.png`. All settings — tolerances, wall/compile limits, mesh size `K`, and the CPU solver — live in `options.jl`.
+This runs the full suite and writes `results_table.txt` and `results_plot.png`. 
 
-## Experiments and existing data
-Each experiment is a numbered run kept under `benchmark_results/`. `BENCH_RUN` in `options.jl` (or the `BENCH_RUN` env var) selects the run: the benchmark reads/writes its per-model `*_results.txt` under `benchmark_results/benchmark_results_<n>/`, alongside an auto-generated `config.toml` snapshotting every setting used. The same `BENCH_RUN` chooses which run `results_table.txt` / `results_plot.png` are generated from. This makes it easy to keep, e.g., separate runs for different CPU solvers:
+## Benchmark options
+All ExaModels.jl, MadNLP.jl, PEtab.jl and its solver options can be configured in `options.jl`.
+
+Here, the benchmark run can also be tagged by changing `BENCH_TAG = <tag>`. 
+Each tagged run is stored in `benchmark_results/benchmark_results_<tag>` which contains the following:
+- `<model>_results.txt` for every model in the `BENCHMARK_MODELS` set
+- `_config.toml` a complete snapshot of the settings used
+The benchmark is resumable, so re-running skips models that already have a terminal result.
+
+This tag also selects which run `results_table.txt` and `results_plot.png` are reported from, so different configurations can be kept side by side — e.g. set `BENCH_TAG = "ma57"` and `BENCH_CPU_SOLVER = MadNLPHSL.Ma57Solver` in `options.jl`, then:
 ```
-$ BENCH_RUN=1 BENCH_CPU_SOLVER=ma27 bash run_benchmarks.sh   # -> benchmark_results/benchmark_results_1/
-$ BENCH_RUN=2 BENCH_CPU_SOLVER=ma57 bash run_benchmarks.sh   # -> benchmark_results/benchmark_results_2/
+$ bash run_benchmarks.sh   # -> benchmark_results/benchmark_results_ma57/
 ```
-We provide our results in `benchmark_results/benchmark_results_0/` (the reference run). The benchmark is resumable, so re-running skips models that already have a terminal result.
+For tagged runs that are complete, `run_benchmarks.sh` only regenerates the table and plot by pulling the figure options from `/benchmark_helpers`.
+
+## Existing results
+The reference run for the paper is `benchmark_results/benchmark_results_focapo/` (set `BENCH_TAG = "focapo"` in `options.jl`), generated with the options chosen for a fair comparison between ExaModels and PEtab.
 
 ## Issues
 For support, please contact [@sshin23](https://github.com/sshin23).
