@@ -4,16 +4,15 @@
 #   y = SGM10-time speedup vs PEtab.jl    — petab_sgm / solver_sgm  (log10). PEtab ⇒ 1 (the 10^0 line).
 # Three series (legend order): MadNLP (GPU), MadNLP (CPU), IPNewton (CPU).
 #
-# Usage: julia --project=. benchmark_helpers/results_plot.jl [results_dir]
-#   results_dir defaults to benchmark_results.
+# Usage: julia --project=. benchmark_helpers/results_plot.jl
+#   reads benchmark_results_<BENCH_RUN> (set in options.jl); writes results_plot.png at repo root.
 
 using Plots
 using Plots.PlotMeasures   # mm units for plot margins
 gr()
 
 const HERE      = @__DIR__
-include(joinpath(HERE, "..", "options.jl"))   # model sets, shifted_geomean, BENCH_SGM_SHIFT, BENCH_K
-const RESULTDIR = length(ARGS) >= 1 ? ARGS[1] : joinpath(HERE, "..", "benchmark_results")
+include(joinpath(HERE, "..", "options.jl"))   # RESULTDIR (benchmark_results_<BENCH_RUN>), model sets, shifted_geomean, BENCH_*
 
 function read_result(m)
     d = Dict{String,String}(); p = joinpath(RESULTDIR, "$(m)_results.txt")

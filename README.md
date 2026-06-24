@@ -18,8 +18,13 @@ $ bash run_benchmarks.sh
 ```
 This runs the full suite and writes `results_table.txt` and `results_plot.png`. All settings — tolerances, wall/compile limits, mesh size `K`, and the CPU solver — live in `options.jl`.
 
-## Pregenerated data
-The full benchmark can take a long time to complete. We provide our results in `benchmark_results/` (per-model `*_results.txt`); the run is resumable, so re-running skips models that already have a terminal result.
+## Experiments and existing data
+Each experiment is a numbered run. `BENCH_RUN` in `options.jl` (or the `BENCH_RUN` env var) selects the run: the benchmark reads/writes its per-model `*_results.txt` under `benchmark_results_<n>/`, alongside an auto-generated `config.toml` snapshotting every setting used. The same `BENCH_RUN` chooses which run `results_table.txt` / `results_plot.png` are generated from. This makes it easy to keep, e.g., separate runs for different CPU solvers:
+```
+$ BENCH_RUN=1 BENCH_CPU_SOLVER=ma27 bash run_benchmarks.sh   # -> benchmark_results_1/
+$ BENCH_RUN=2 BENCH_CPU_SOLVER=ma57 bash run_benchmarks.sh   # -> benchmark_results_2/
+```
+We provide our results in `benchmark_results_0/` (the reference run). The benchmark is resumable, so re-running skips models that already have a terminal result.
 
-## Bug reports and support
-Please contact [@sshin23](https://github.com/sshin23).
+## Issues
+For support, please contact [@sshin23](https://github.com/sshin23).

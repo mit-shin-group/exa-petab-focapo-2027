@@ -24,8 +24,7 @@
 using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, MadNLPHSL
 
 # ─── CONFIGURABLE SETTINGS (single source of truth = options.jl) ────────────────
-include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + model sets + BENCH_* config
-const RESULTDIR = joinpath(@__DIR__, "..", "benchmark_results")
+include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + RESULTDIR + model sets + BENCH_* config
 
 const K             = BENCH_K
 const TOL           = BENCH_TOL
@@ -151,7 +150,7 @@ end
 
 # ─── SGM warm reruns (timing only) ──────────────────────────────────────────────
 function run_sgm_reruns(m, rp, model)
-    write_result(rp, Dict(PFX*"sgm_status" => "running", PFX*"sgm_n" => N_SGM_RERUNS))
+    write_result(rp, Dict(PFX*"sgm_status" => "running"))
     solve_times = Float64[]
     for i in 1:N_SGM_RERUNS
         @info "[$m] SGM solve $i/$N_SGM_RERUNS ..."
@@ -166,7 +165,7 @@ function run_sgm_reruns(m, rp, model)
         end
     end
     sgm_solve = shifted_geomean(solve_times, SGM_SHIFT)
-    write_result(rp, Dict(PFX*"sgm_status" => "ok", PFX*"sgm_n" => N_SGM_RERUNS,
+    write_result(rp, Dict(PFX*"sgm_status" => "ok",
                           PFX*"solve_times" => join(solve_times, ","), PFX*"sgm_solve_time" => sgm_solve))
     @info "[$m] SGM done: solve=$sgm_solve s (n=$N_SGM_RERUNS)"
 end
@@ -205,7 +204,7 @@ function bench_one(m)
                 PFX*"compile_status" => "ok",
                 PFX*"compile_time"   => round(time() - t0; digits=2),
                 PFX*"presolve_time"  => round(t_phase1;    digits=2),
-                PFX*"K" => K, PFX*"nvar" => nvar, PFX*"ncon" => ncon,
+                PFX*"nvar" => nvar, PFX*"ncon" => ncon,
             ))
         catch e
             write_result(rp, Dict(PFX*"compile_status" => "error", PFX*"compile_time" => "", PFX*"error" => sprint(showerror, e)))

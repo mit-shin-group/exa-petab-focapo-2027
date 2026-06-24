@@ -23,8 +23,7 @@ using PEtab, Optim
 # ─── CONFIGURABLE SETTINGS ────────────────────────────────────────────────────
 # ALL solver/benchmark settings live in options.jl (single source of truth, shared with
 # run_examodels.jl). Change them THERE, not here — below we only alias the BENCH_* constants.
-include(joinpath(@__DIR__, "..", "options.jl"))  # MODELDIR + model sets + BENCH_* config
-const RESULTDIR = joinpath(@__DIR__, "..", "benchmark_results")
+include(joinpath(@__DIR__, "..", "options.jl"))  # MODELDIR + RESULTDIR + model sets + BENCH_* config
 
 const TOL           = BENCH_TOL                  # Optim g_tol (== MadNLP tol)
 const SOLVE_LIMIT   = BENCH_SOLVE_LIMIT          # Optim time_limit [s] (== MadNLP max_wall_time)
@@ -106,7 +105,7 @@ optim_opts() = Optim.Options(
 # PEtab column is an n=10 head-to-head against exa_sgm_solve_time. Only meaningful after a
 # converged first solve (petab_optimum_found=true); skipped otherwise.
 function run_petab_sgm(rp, PEprob)
-    write_result(rp, Dict("petab_sgm_status" => "running", "petab_sgm_n" => N_SGM_RERUNS))
+    write_result(rp, Dict("petab_sgm_status" => "running"))
     solve_times = Float64[]
     for i in 1:N_SGM_RERUNS
         @info "[petab SGM] solve $i/$N_SGM_RERUNS ..."
@@ -125,7 +124,6 @@ function run_petab_sgm(rp, PEprob)
     end
     sgm_solve = shifted_geomean(solve_times, SGM_SHIFT)
     write_result(rp, Dict("petab_sgm_status"     => "ok",
-                          "petab_sgm_n"          => N_SGM_RERUNS,
                           "petab_solve_times"    => join(solve_times, ","),
                           "petab_sgm_solve_time" => sgm_solve))
     @info "[petab SGM] done: solve=$sgm_solve s (n=$N_SGM_RERUNS)"
@@ -157,7 +155,7 @@ function run_worker(m)
     # petab_sgm_status is already ok/error). KEEP_SGM preserves them for a flag-only re-pass.
     KEEP_SGM || merge!(clear, Dict(
         "petab_sgm_status"     => "",           "petab_sgm_solve_time" => "",
-        "petab_solve_times"    => "",           "petab_sgm_n"          => "",
+        "petab_solve_times"    => "",
     ))
     write_result(rp, clear)
     @info "[$m] PEtab compiling (limit=$(COMPILE_LIMIT)s)..."

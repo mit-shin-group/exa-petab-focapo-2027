@@ -6,11 +6,10 @@
 
 using Printf
 
-const RESULTDIR  = joinpath(@__DIR__, "..", "benchmark_results")
 const REPORT_TXT = joinpath(@__DIR__, "..", "results_table.txt")
 const USE_SGM    = !("--cold" in ARGS)
 
-include(joinpath(@__DIR__, "..", "options.jl"))
+include(joinpath(@__DIR__, "..", "options.jl"))   # provides RESULTDIR (benchmark_results_<BENCH_RUN>)
 
 const MODELS = BENCHMARK_MODELS  # the benchmarked set (already sorted)
 const SGM_N      = BENCH_SGM_N

@@ -12,8 +12,7 @@
 using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, Optim, MadNLPHSL
 
 # ─── CONFIGURABLE SETTINGS (single source of truth = options.jl) ──────────────────
-include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + model sets + BENCH_* config
-const RESULTDIR = joinpath(@__DIR__, "..", "benchmark_results")
+include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + RESULTDIR + model sets + BENCH_* config
 
 const TARGET       = (length(ARGS) >= 1 && !occursin(r"^\d+$", ARGS[1])) ? ARGS[1] : "Bruno_JExpBot2016"
 const WARMUP_MODEL = TARGET == "Crauste_CellSystems2017" ? "Bruno_JExpBot2016" : "Crauste_CellSystems2017"
@@ -112,7 +111,7 @@ function build_model(yaml, t_origin)
 end
 
 function run_sgm_reruns(m, rp, model)
-    write_result(rp, Dict(PFX*"sgm_status" => "running", PFX*"sgm_n" => N_SGM_RERUNS))
+    write_result(rp, Dict(PFX*"sgm_status" => "running"))
     solve_times = Float64[]
     for i in 1:N_SGM_RERUNS
         @info "[$m] SGM solve $i/$N_SGM_RERUNS ..."
@@ -124,7 +123,7 @@ function run_sgm_reruns(m, rp, model)
         end
     end
     sgm_solve = shifted_geomean(solve_times, SGM_SHIFT)
-    write_result(rp, Dict(PFX*"sgm_status" => "ok", PFX*"sgm_n" => N_SGM_RERUNS,
+    write_result(rp, Dict(PFX*"sgm_status" => "ok",
                           PFX*"solve_times" => join(solve_times, ","), PFX*"sgm_solve_time" => sgm_solve))
     @info "[$m] SGM done: solve=$sgm_solve s (n=$N_SGM_RERUNS)"
 end
@@ -151,7 +150,7 @@ function bench_exa(m)
         model = mdl
         write_result(rp, Dict(
             PFX*"compile_status" => "ok", PFX*"compile_time" => round(time() - t0; digits=2),
-            PFX*"presolve_time"  => round(t_phase1; digits=2), PFX*"K" => K, PFX*"nvar" => nvar, PFX*"ncon" => ncon,
+            PFX*"presolve_time"  => round(t_phase1; digits=2), PFX*"nvar" => nvar, PFX*"ncon" => ncon,
         ))
     catch e
         write_result(rp, Dict(PFX*"compile_status" => "error", PFX*"error" => sprint(showerror, e)))
@@ -244,7 +243,7 @@ function bench_petab(m)
     end
 
     if PETAB_SGM_N > 0 && get(read_result(rp), "petab_optimum_found", "") == "true"
-        write_result(rp, Dict("petab_sgm_status" => "running", "petab_sgm_n" => PETAB_SGM_N))
+        write_result(rp, Dict("petab_sgm_status" => "running"))
         ptimes = Float64[]; ok = true
         for i in 1:PETAB_SGM_N
             @info "[$m] PEtab SGM solve $i/$PETAB_SGM_N ..."
@@ -259,7 +258,7 @@ function bench_petab(m)
         end
         if ok
             psgm = shifted_geomean(ptimes, SGM_SHIFT)
-            write_result(rp, Dict("petab_sgm_status" => "ok", "petab_sgm_n" => PETAB_SGM_N,
+            write_result(rp, Dict("petab_sgm_status" => "ok",
                                   "petab_solve_times" => join(ptimes, ","), "petab_sgm_solve_time" => psgm))
             @info "[$m] PEtab SGM done: solve=$psgm s (n=$PETAB_SGM_N)"
         end

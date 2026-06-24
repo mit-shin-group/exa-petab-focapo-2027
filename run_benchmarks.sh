@@ -8,8 +8,9 @@
 #   4. Bruno_JExpBot2016                     (shared JIT-warmup model, benchmarked separately)
 # then regenerates the report + figure.
 #
-# Per-model results -> benchmark_results/{Model}_results.txt  (resumable: terminal results are skipped).
-# Final outputs      -> results_table.txt , results_plot.png  (repo root).
+# Per-model results + a config.toml snapshot -> benchmark_results_<BENCH_RUN>/ (resumable: terminal
+# results are skipped). The run number is set in options.jl (BENCH_RUN); run 0 is the reference.
+# Final outputs for the selected run -> results_table.txt , results_plot.png  (repo root).
 # ALL settings (tolerances, limits, K, the CPU HSL solver, ...) live in options.jl.
 #
 #   bash run_benchmarks.sh                  # full suite (GPU auto-detected)
@@ -19,11 +20,13 @@ set -u
 cd "$(dirname "$0")"
 HELP=benchmark_helpers
 LOG="$HELP/debugging/logs"
-mkdir -p benchmark_results "$LOG"
 
 CPU_INST=${CPU_INST:-4}
+RUN=$(julia --project=. -e 'include("options.jl"); print(BENCH_RUN)')   # experiment number (options.jl / BENCH_RUN env)
+mkdir -p "benchmark_results_$RUN" "$LOG"
+julia --project=. "$HELP/snapshot_options.jl"          # write config.toml snapshot into benchmark_results_$RUN
 GPU=$(julia --project=. -e 'using CUDA; print(CUDA.functional())' 2>/dev/null || echo false)
-echo "[run_benchmarks] $(date)  GPU=$GPU  CPU_INST=$CPU_INST  CPU_SOLVER=${BENCH_CPU_SOLVER:-ma27}"
+echo "[run_benchmarks] $(date)  RUN=$RUN  GPU=$GPU  CPU_INST=$CPU_INST  CPU_SOLVER=${BENCH_CPU_SOLVER:-ma27}"
 
 # watchdog-style retry: a model's hard-deadline self-kill exits the worker non-zero (esp. the GPU
 # cuDSS hang); just resume — the worker skips already-terminal models. Mirrors run_examodels.sh.
