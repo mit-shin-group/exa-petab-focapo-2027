@@ -5,7 +5,7 @@
 # Set the run number here (or via the BENCH_RUN env var); run 0 is the reference snapshot.
 # results.jl / results_plot.jl read this same run, so set it to choose which run to report.
 const BENCH_RUN = parse(Int, get(ENV, "BENCH_RUN", "0"))
-const RESULTDIR = joinpath(@__DIR__, "benchmark_results_$(BENCH_RUN)")
+const RESULTDIR = joinpath(@__DIR__, "benchmark_results", "benchmark_results_$(BENCH_RUN)")
 
 # ── 1. SHARED (both backends) ────────────────────────────────────────────────────
 const BENCH_TOL           = 1e-6           # convergence tol (MadNLP tol == Optim g_tol)

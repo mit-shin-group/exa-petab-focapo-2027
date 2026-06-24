@@ -11,7 +11,7 @@
 # Default: 12 concurrent workers.
 set -u
 cd "$(dirname "$0")/.."
-RD=benchmark_results_$(julia --project=. -e 'include("options.jl"); print(BENCH_RUN)')
+RD=$(julia --project=. -e 'include("options.jl"); print(RESULTDIR)')
 LD=benchmark_helpers/debugging/logs
 mkdir -p "$RD" "$LD"
 PAR=${1:-12}

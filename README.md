@@ -19,12 +19,12 @@ $ bash run_benchmarks.sh
 This runs the full suite and writes `results_table.txt` and `results_plot.png`. All settings — tolerances, wall/compile limits, mesh size `K`, and the CPU solver — live in `options.jl`.
 
 ## Experiments and existing data
-Each experiment is a numbered run. `BENCH_RUN` in `options.jl` (or the `BENCH_RUN` env var) selects the run: the benchmark reads/writes its per-model `*_results.txt` under `benchmark_results_<n>/`, alongside an auto-generated `config.toml` snapshotting every setting used. The same `BENCH_RUN` chooses which run `results_table.txt` / `results_plot.png` are generated from. This makes it easy to keep, e.g., separate runs for different CPU solvers:
+Each experiment is a numbered run kept under `benchmark_results/`. `BENCH_RUN` in `options.jl` (or the `BENCH_RUN` env var) selects the run: the benchmark reads/writes its per-model `*_results.txt` under `benchmark_results/benchmark_results_<n>/`, alongside an auto-generated `config.toml` snapshotting every setting used. The same `BENCH_RUN` chooses which run `results_table.txt` / `results_plot.png` are generated from. This makes it easy to keep, e.g., separate runs for different CPU solvers:
 ```
-$ BENCH_RUN=1 BENCH_CPU_SOLVER=ma27 bash run_benchmarks.sh   # -> benchmark_results_1/
-$ BENCH_RUN=2 BENCH_CPU_SOLVER=ma57 bash run_benchmarks.sh   # -> benchmark_results_2/
+$ BENCH_RUN=1 BENCH_CPU_SOLVER=ma27 bash run_benchmarks.sh   # -> benchmark_results/benchmark_results_1/
+$ BENCH_RUN=2 BENCH_CPU_SOLVER=ma57 bash run_benchmarks.sh   # -> benchmark_results/benchmark_results_2/
 ```
-We provide our results in `benchmark_results_0/` (the reference run). The benchmark is resumable, so re-running skips models that already have a terminal result.
+We provide our results in `benchmark_results/benchmark_results_0/` (the reference run). The benchmark is resumable, so re-running skips models that already have a terminal result.
 
 ## Issues
 For support, please contact [@sshin23](https://github.com/sshin23).
