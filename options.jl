@@ -1,7 +1,4 @@
-# options.jl — single source of truth for benchmark settings and model sets.
-# Included by Benchmarks/{run_examodels,run_bruno,run_petab,results,results_plot}.jl.
-# Pure data (no package deps): MadNLP/Optim choices are stored as Symbols and resolved by the
-# consuming script. Three config sections: (1) shared, (2) ExaModels/MadNLP, (3) PEtab.jl/Optim.
+# Options for running the benchmark scripts
 
 # ── 1. SHARED (both backends) ────────────────────────────────────────────────────
 const BENCH_TOL           = 1e-6           # convergence tol (MadNLP tol == Optim g_tol)

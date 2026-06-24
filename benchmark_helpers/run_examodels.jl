@@ -21,7 +21,7 @@
 # CPU (gpu_id arg ignored; run several instances to parallelize across cores):
 #   BENCH_BACKEND=cpu julia --project=. -t 1 benchmark_helpers/run_examodels.jl 0 <num_instances> <instance_idx>
 
-using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels
+using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, MadNLPHSL
 
 # ─── CONFIGURABLE SETTINGS (single source of truth = options.jl) ────────────────
 include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + model sets + BENCH_* config
@@ -44,15 +44,15 @@ const BACKEND = lowercase(get(ENV, "BENCH_BACKEND", "gpu"))
 const IS_GPU  = BACKEND != "cpu"
 const PFX     = IS_GPU ? "exagpu_" : "exacpu_"
 
-# LiftedKKT (condensed-space) MadNLP regime — IDENTICAL on both backends (GPU just adds CUDSS).
-const KKT_OPTS = (kkt_system = MadNLP.SparseCondensedKKTSystem,
-                  equality_treatment = MadNLP.RelaxEquality,
-                  fixed_variable_treatment = MadNLP.RelaxBound)
-solve_madnlp(model) = IS_GPU ?
-    madnlp(model; tol=TOL, acceptable_tol=ACCEPT_TOL, acceptable_iter=ACCEPT_ITER, max_iter=MAX_ITER,
-           max_wall_time=SOLVE_LIMIT, linear_solver=MadNLPGPU.CUDSSSolver, KKT_OPTS...) :
-    madnlp(model; tol=TOL, acceptable_tol=ACCEPT_TOL, acceptable_iter=ACCEPT_ITER, max_iter=MAX_ITER,
-           max_wall_time=SOLVE_LIMIT, KKT_OPTS...)
+# LiftedKKT (condensed-space) MadNLP regime — same on both backends; only the linear solver differs:
+# GPU = CUDSS (MadNLPGPU); CPU = HSL (MadNLPHSL, BENCH_CPU_SOLVER ∈ {ma27, ma57, ma97}).
+const KKT_OPTS = (kkt_system = getproperty(MadNLP, BENCH_KKT_SYSTEM),
+                  equality_treatment = getproperty(MadNLP, BENCH_EQUALITY_TREATMENT),
+                  fixed_variable_treatment = getproperty(MadNLP, BENCH_FIXED_VAR_TREATMENT))
+const LINEAR_SOLVER = IS_GPU ? getproperty(MadNLPGPU, BENCH_GPU_SOLVER) :
+                               getproperty(MadNLPHSL, Symbol(uppercasefirst(String(BENCH_CPU_SOLVER)), "Solver"))
+solve_madnlp(model) = madnlp(model; tol=TOL, acceptable_tol=ACCEPT_TOL, acceptable_iter=ACCEPT_ITER,
+    max_iter=MAX_ITER, max_wall_time=SOLVE_LIMIT, linear_solver=LINEAR_SOLVER, KKT_OPTS...)
 gpu_reclaim() = IS_GPU && (GC.gc(); CUDA.reclaim())
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -274,7 +274,7 @@ function warmup()
         mdl, _, _, _, _ = build_model(yaml, t0)
         IS_GPU && CUDA.synchronize()
         madnlp(mdl; tol=TOL, acceptable_tol=ACCEPT_TOL, acceptable_iter=ACCEPT_ITER, max_iter=MAX_ITER,
-               max_wall_time=250.0, KKT_OPTS..., (IS_GPU ? (; linear_solver=MadNLPGPU.CUDSSSolver) : (;))...)
+               max_wall_time=250.0, linear_solver=LINEAR_SOLVER, KKT_OPTS...)
         mdl = nothing; gpu_reclaim()
         @info "warmup done"
     catch e; @warn "warmup failed" exception=(e, catch_backtrace()); end

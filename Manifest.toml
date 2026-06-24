@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "f8af40751767c6e057b652ea5dd527a5412c5ee9"
+project_hash = "efba882b15fabd446c9fd80abb3d02e4007ae226"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "bbc22a9a08a0ef6460041086d8a7b27940ed4ffd"
@@ -1118,6 +1118,18 @@ git-tree-sha1 = "45337643a2d97262d5fe72ce1f13e8a662d13d62"
 uuid = "0234f1f7-429e-5d53-9886-15a909be8d59"
 version = "2.1.2+0"
 
+[[deps.HSL]]
+deps = ["CompilerSupportLibraries_jll", "HSL_jll", "Libdl", "LinearAlgebra", "OpenBLAS32_jll", "Quadmath", "SparseArrays"]
+git-tree-sha1 = "752b5c0abfdee54246457d3676795814d368f653"
+uuid = "34c5aeac-e683-54a6-a0e9-6e0fdc586c50"
+version = "0.5.5"
+
+[[deps.HSL_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "aab9a5a5233f6a919c785adcf3d16372f5937dfb"
+uuid = "017b0a0e-03f4-516a-9b91-836bbd1904dd"
+version = "4.0.5+0"
+
 [[deps.HTTP]]
 deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "ExceptionUnwrapping", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "PrecompileTools", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
 git-tree-sha1 = "51059d23c8bb67911a2e6fd5130229113735fc7e"
@@ -1689,6 +1701,12 @@ version = "0.10.1"
     cuBLAS = "182d3088-87b7-4494-8cad-fc6afaa545bc"
     cuSOLVER = "887afef0-6a32-4de5-add4-7827692ba8fc"
     cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"
+
+[[deps.MadNLPHSL]]
+deps = ["HSL", "LinearAlgebra", "MadNLP", "MadNLPTests"]
+git-tree-sha1 = "fadc64ec3bc0227e035c294215c95166d11befc6"
+uuid = "7fb6135f-58fe-4112-84ca-653cf5be0c77"
+version = "0.7.2"
 
 [[deps.MadNLPTests]]
 deps = ["JuMP", "LinearAlgebra", "MadNLP", "NLPModels", "NLPModelsJuMP", "Random", "SparseArrays", "Test"]
@@ -2379,6 +2397,16 @@ version = "2.11.3"
 
     [deps.QuadGK.weakdeps]
     Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+
+[[deps.Quadmath]]
+deps = ["Compat", "Printf", "Random"]
+git-tree-sha1 = "79cd6923b7e5fdb4130cdb0f6c0038d7f65a9717"
+uuid = "be4d8f0f-7fa4-5f49-b795-2f01399ab2dd"
+version = "1.0.1"
+weakdeps = ["SpecialFunctions"]
+
+    [deps.Quadmath.extensions]
+    QuadmathSpecialFunctionsExt = ["SpecialFunctions"]
 
 [[deps.QuasiMonteCarlo]]
 deps = ["Accessors", "ConcreteStructs", "LatticeRules", "LinearAlgebra", "PrecompileTools", "Primes", "Random", "Sobol"]
