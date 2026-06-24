@@ -6,10 +6,7 @@ First, install Julia (we recommend [juliaup](https://github.com/JuliaLang/juliau
 
 The GPU pass requires an NVIDIA GPU for CUDA + CUDSS. If a compatible GPU is not available, the GPU columns are skipped and the rest of the suite still runs.
 
-The CPU solver uses the HSL linear solvers through `MadNLPHSL`. The default `ma27` works out of the box from the freely-redistributable HSL subset bundled by `HSL_jll`. To benchmark with `ma57`/`ma97` instead (set `BENCH_CPU_SOLVER` in `options.jl`), you additionally need a full [libHSL](https://licences.stfc.ac.uk/product/libhsl) build; point the project at it before instantiating:
-```
-$ julia --project -e 'import Pkg; Pkg.develop(path="path/to/HSL_jll"); Pkg.instantiate()'
-```
+The CPU (HSL) runs (`ma27`/`ma57`/`ma97`, set via `BENCH_CPU_SOLVER` in `options.jl`) require a licensed [libHSL](https://licences.stfc.ac.uk/product/libhsl): download `HSL_jll.jl` from STFC and run `julia --project -e 'import Pkg; Pkg.develop(path="path/to/HSL_jll.jl"); Pkg.instantiate()'` before benchmarking. The GPU (CUDSS) and PEtab passes do not need it.
 
 Otherwise, instantiate the pinned dependencies and run:
 ```
