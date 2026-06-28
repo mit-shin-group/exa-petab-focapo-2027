@@ -1,4 +1,4 @@
-# exa-petab-focapo-2026
+# exa-petab-focapo-2027
 This repository contains the scripts for reproducing the benchmark results in "REVISITING SIMULTANEOUS METHODS FOR DYNAMIC OPTIMIZATION IN THE GPU ERA" by Joseph W. Choi and Sungho Shin.
 
 ## How to run the benchmark

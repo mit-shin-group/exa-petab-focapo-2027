@@ -2,10 +2,10 @@
 # results_table.txt. Each tag is backend-isolated (see options.jl / run_benchmarks.sh), so the
 # columns are pulled from DIFFERENT dirs under benchmark_results/:
 #   ExaModels GPU  <- the GPU tag                                   (exagpu_*)
-#   ExaModels CPU  <- the pinned CPU tag (CPUma27 for now)          (exacpu_*)
+#   ExaModels CPU  <- the pinned CPU tag (CPU_PIN = CPUma57)         (exacpu_*)
 #   PEtab          <- FASTEST of the PEtab optimizer tags per model (petab_*), winner shown in TAG
-# For a single-tag run only that tag's dir is populated, so the other columns show "-"; for the
-# assembled "focapo" report every dir is populated and each column is filled.
+# For a single-tag run only that tag's dir is populated, so the other columns show "-"; once the GPU,
+# CPUma57 and PEtab tag dirs all exist the assembled report fills every column.
 #   julia --project=. benchmark_helpers/results_table.jl          # warm (SGM) solve times — DEFAULT
 #   julia --project=. benchmark_helpers/results_table.jl --cold   # cold first-run solve times instead
 
@@ -22,7 +22,7 @@ const SGM_SHIFT = BENCH_SGM_SHIFT
 
 # A SOLVE_SUCCEEDED/ACCEPTABLE whose objective is worse than PEtab's by ≥ this % is converged-but-
 # suboptimal (0S / 0AS) and is EXCLUDED from the "ExaModels solved" count.
-const SUBOPT_GAP_PCT = 2.0
+const SUBOPT_ROG = 0.02
 
 # ─── tag discovery + per-backend source selection ──────────────────────────────
 const RESULTS_ROOT = joinpath(@__DIR__, "..", "benchmark_results")
@@ -36,7 +36,7 @@ tagdir(t) = joinpath(RESULTS_ROOT, "benchmark_results_$t")
 # to one solver tag for now (no TAG column); set CPU_PIN = nothing to enable fastest-across-CPU-tags.
 const TAGS       = available_tags()
 const GPU_TAGS   = filter(==("GPU"), TAGS)
-const CPU_PIN    = "CPUma27"
+const CPU_PIN    = "CPUma57"
 const CPU_TAGS   = CPU_PIN === nothing ? filter(t -> startswith(t, "CPUma"), TAGS) :
                                          filter(==(CPU_PIN), TAGS)
 const PETAB_TAGS = filter(t -> t in ("IPNewton", "GaussNewton", "BFGS"), TAGS)
@@ -62,7 +62,7 @@ function center_str(s, n)
     l = div(n - len, 2); " "^l * s * " "^(n - len - l)
 end
 
-# GAP(%) = (petab_obj(exa_p*) - petab_obj) / |petab_obj| × 100 — ExaModels' optimal parameters scored
+# ROG(-) = (petab_obj(exa_p*) - petab_obj) / |petab_obj| — dimensionless relative objective gap; ExaModels' optimal parameters scored
 # under PEtab's OWN objective, vs PEtab's optimum (fair, same-objective). The benchmark stores
 # petab_obj(exa_p*) as `<pfx>petab_obj`; until a run populates it we fall back to the ExaModels
 # objective `<pfx>objective` so the column is not empty. The PEtab objective comes from the SAME dict
@@ -71,7 +71,7 @@ function gap_val(d, pfx, pd)
     eo = fparse(g(d, pfx * "petab_obj")); eo === nothing && (eo = fparse(g(d, pfx * "objective")))
     po = fparse(g(pd, "petab_objective"))
     (eo === nothing || po === nothing || !isfinite(eo) || !isfinite(po) || po == 0.0) && return nothing
-    (eo - po) / abs(po) * 100.0
+    (eo - po) / abs(po)
 end
 gap_str(d, pfx, pd) = (gp = gap_val(d, pfx, pd); gp === nothing ? "-" :
                    replace(@sprintf("%+.1e", gp), "e+0" => "e+", "e-0" => "e-"))
@@ -88,7 +88,7 @@ function madnlp_code(d, pfx, pd)
     if occursin("SUCCEEDED", term) || occursin("ACCEPTABLE", term)
         base = occursin("ACCEPTABLE", term) ? "0A" : "0"
         gp   = gap_val(d, pfx, pd)
-        return (gp !== nothing && gp >= SUBOPT_GAP_PCT) ? base * "S" : base
+        return (gp !== nothing && gp >= SUBOPT_ROG) ? base * "S" : base
     end
     occursin("WALLTIME",         term) && return "T"
     occursin("RESTORATION",      term) && return "R"
@@ -186,8 +186,8 @@ major_hdr = @sprintf("%-*s | %s | %s | %s",
     center_str("PEtab.jl + Best Optimizer", W_PETAB_INNER))
 sub_hdr = @sprintf("%-*s | %*s %*s %*s  %*s %*s | %*s %*s %*s  %*s %*s | %*s %*s  %*s %*s",
     W_NAME, "Model",
-    W_CMPL,"CMPL(s)", W_PCT,"EXA(%)", W_SOL,"SOL(s)", W_STAT,"STAT", W_GAP,"GAP(%)",
-    W_CMPL,"CMPL(s)", W_PCT,"EXA(%)", W_SOL,"SOL(s)", W_STAT,"STAT", W_GAP,"GAP(%)",
+    W_CMPL,"CMPL(s)", W_PCT,"EXA(%)", W_SOL,"SOL(s)", W_STAT,"STAT", W_GAP,"ROG(-)",
+    W_CMPL,"CMPL(s)", W_PCT,"EXA(%)", W_SOL,"SOL(s)", W_STAT,"STAT", W_GAP,"ROG(-)",
     W_CMPL,"CMPL(s)", W_SOL,"SOL(s)", W_STAT,"STAT", W_TAG,"TAG")
 bar = "="^length(sub_hdr); sep = "-"^length(sub_hdr)
 
@@ -204,14 +204,18 @@ end
 println(buf, sep)
 
 # ─── summary (GPU is the primary ExaModels backend) ─────────────────────────────
-exa_opt(d)    = madnlp_code(d,"exagpu_",d) in ("0", "0A")
-exa_subopt(d) = madnlp_code(d,"exagpu_",d) in ("0S", "0AS")
+# Classify each model from (GPU dict, PEtab dict) so ROG is scored against PEtab's own objective.
+# The GPU dict has no `petab_objective` key — passing it as `pd` silently zeroes the gap and the
+# suboptimal (0S/0AS) flag never fires, undercounting the suboptimal class.
+all_dgp = [(gpu_sel[i][2], petab_sel[i][2]) for i in eachindex(MODELS)]
+exa_opt(p)    = madnlp_code(p[1],"exagpu_",p[2]) in ("0", "0A")
+exa_subopt(p) = madnlp_code(p[1],"exagpu_",p[2]) in ("0S", "0AS")
 
 println(buf, "\nSUMMARY (ExaModelsPEtab target set: continuous + PEtab-solved)")
 @printf(buf, "  Target models          : %2d       (of %d; %d 'Possible Discontinuities', %d PEtab.jl failed compile)\n",
         length(BENCHMARK_MODELS), length(ALL_MODELS), length(EXCLUDED_MODELS), length(FAILED_MODELS))
-@printf(buf, "  ExaModels solved (GPU) : %2d / %2d  (status 0 + 0A, full/acceptable optimum)\n", count(exa_opt, all_dg), length(MODELS))
-@printf(buf, "  Solved-but-suboptimal  : %2d       (0S / 0AS, converged but obj ≥+%.1f%% vs PEtab; excluded above)\n", count(exa_subopt, all_dg), SUBOPT_GAP_PCT)
+@printf(buf, "  ExaModels solved (GPU) : %2d / %2d  (status 0 + 0A, full/acceptable optimum)\n", count(exa_opt, all_dgp), length(MODELS))
+@printf(buf, "  Solved-but-suboptimal  : %2d       (0S / 0AS, converged but ROG ≥ %.2f vs PEtab; excluded above)\n", count(exa_subopt, all_dgp), SUBOPT_ROG)
 
 println(buf, "")
 println(buf, "  Sources: GPU=[$(join(GPU_TAGS, ","))]  CPU=[$(join(CPU_TAGS, ","))]  PEtab=[$(join(PETAB_TAGS, ","))]  (tag dirs under benchmark_results/)")
@@ -219,13 +223,13 @@ println(buf, "  CMPL(s) := Model compilation time")
 println(buf, "  EXA(%)  := Fraction of model compile time spent on actual ExaModels build (PEtab setup + mesh generation)")
 println(buf, "  SOL(s)  := Solver solve time, shifted geometric mean (by δ = $(SGM_SHIFT)s) over n=$SGM_N reruns")
 println(buf, "  STAT    := Solver status")
-println(buf, "  GAP(%)  := (petab.nllh(exa_p*) - petab_obj) / |petab_obj| × 100%  (negative => ExaModels lower)")
+println(buf, "  ROG(-)  := relative objective gap = (petab.nllh(exa_p*) - petab_obj) / |petab_obj|  (negative => ExaModels lower)")
 println(buf, "  TAG     := Fastest PEtab optimizer for the model (IPN=Optim.IPNewton, GN=Fides.CustomHessian/GaussNewton, BFGS=Fides.BFGS)")
 
 # ─── status key (only codes present in the table) ───────────────────────────────
 madnlp_desc = Dict("0"=>"SOLVE_SUCCEEDED", "0A"=>"SOLVED_TO_ACCEPTABLE_LEVEL",
-    "0S"=>"SOLVE_SUCCEEDED, suboptimal (≥+$(SUBOPT_GAP_PCT)% vs PEtab)",
-    "0AS"=>"SOLVED_TO_ACCEPTABLE_LEVEL, suboptimal (≥+$(SUBOPT_GAP_PCT)% vs PEtab)",
+    "0S"=>"SOLVE_SUCCEEDED, suboptimal (ROG ≥ $(SUBOPT_ROG) vs PEtab)",
+    "0AS"=>"SOLVED_TO_ACCEPTABLE_LEVEL, suboptimal (ROG ≥ $(SUBOPT_ROG) vs PEtab)",
     "T"=>"WALLTIME_EXCEEDED (timeout)", "R"=>"RESTORATION_FAILED", "D"=>"SEARCH_DIRECTION_BECOMES_TOO_SMALL",
     "5"=>"other", "E"=>"Error", "-"=>"compile_failed/not_run")
 const MADNLP_ORDER = ["0","0A","0S","0AS","T","R","D","5","E","-"]

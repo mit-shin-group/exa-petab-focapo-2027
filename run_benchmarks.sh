@@ -13,8 +13,8 @@
 #   BFGS        INCLUDE_PETAB=true, OPTIMIZER=Fides.BFGS()             PEtab.jl (self-approx Hessian)
 #
 # Per-model results + a _config.toml snapshot -> benchmark_results/benchmark_results_<BENCH_TAG>/
-# (resumable: terminal results are skipped). results_table.jl assembles the paper table (tag focapo)
-# from the separate per-tag dirs. ALL settings live in options.jl.
+# (resumable: terminal results are skipped). results_table.jl auto-assembles the paper table from the
+# separate per-tag dirs (GPU + CPUma57 + IPNewton/GaussNewton/BFGS). ALL settings live in options.jl.
 #
 #   bash run_benchmarks.sh                    # run the configuration in options.jl
 #   CPU_INST=4 bash run_benchmarks.sh         # parallel exa-CPU instances (default 1 = serial)
