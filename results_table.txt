@@ -2,13 +2,13 @@
                |        ExaModels + MadNLP (GPU)        |        ExaModels + MadNLP (CPU)        |  PEtab.jl + Best Optimizer 
 Model          | CMPL(s) EXA(%)   SOL(s)  STAT   ROG(-) | CMPL(s) EXA(%)   SOL(s)  STAT   ROG(-) | CMPL(s)   SOL(s)  STAT  TAG
 ------------------------------------------------------------------------------------------------------------------------------
-Armistead      |  127.99    59%    0.697     0  +5.0e-3 |       -      -        -     -        - |    98.0    0.131    0F   GN
+Armistead      |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
 Bachmann       |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
 Bertozzi       |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
 Blasi          |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
 Boehm          |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
 Borghans       |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
-Bruno          |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Bruno          |  134.76    59%    0.364     0  +1.6e-8 |  132.82    58%    0.419     0 +7.0e-11 |   58.85    1.113    0F   GN
 Crauste        |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
 Elowitz        |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
 Fiedler        |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
