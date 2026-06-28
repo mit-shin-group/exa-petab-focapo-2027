@@ -1,0 +1,15 @@
+exacpu_compile_status=ok
+exacpu_compile_time=123.11
+exacpu_constr_viol=7.180594453702052e-7
+exacpu_error=
+exacpu_iter=33
+exacpu_ncon=30524
+exacpu_nvar=30545
+exacpu_objective=-63.197857702863274
+exacpu_petab_obj=-63.197845362549636
+exacpu_presolve_time=50.02
+exacpu_sgm_error=first solve term=INFEASIBLE_PROBLEM_DETECTED∉{SUCCEEDED,ACCEPTABLE}; SGM skipped
+exacpu_sgm_status=skipped
+exacpu_solve_status=ok
+exacpu_solve_time=38.34
+exacpu_term_status=INFEASIBLE_PROBLEM_DETECTED

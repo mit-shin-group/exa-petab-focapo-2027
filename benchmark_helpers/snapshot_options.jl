@@ -1,7 +1,6 @@
-# snapshot_options.jl — dump the complete, resolved benchmark configuration into the run's results
-# dir as _config.toml. Auto-introspects every BENCH_* setting from options.jl, resolving the zero-arg
-# solver/optimizer accessors to their objects. Loads the solver packages (this runs once per
-# benchmark) so those accessors resolve. Run-level config lives here, not in each *_results.txt.
+# snapshot_options.jl — write the resolved benchmark config to the run's _config.toml.
+# Auto-introspects every BENCH_* setting from options.jl, resolving the zero-arg
+# solver/optimizer accessors to their objects. Loads the solver packages so those accessors resolve.
 using CUDA, MadNLP, MadNLPGPU, MadNLPHSL, CUDSS, Optim, Fides
 include(joinpath(@__DIR__, "..", "options.jl"))
 mkpath(RESULTDIR)

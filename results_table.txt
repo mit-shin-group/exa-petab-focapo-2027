@@ -1,46 +1,48 @@
-===========================================================================================================================
-               |       ExaModels + MadNLP (GPU)        |       ExaModels + MadNLP (CPU)        | PEtab.jl + Best Optimizer 
-Model          | CMPL(s) EXA(%)  SOL(s)  STAT   GAP(%) | CMPL(s) EXA(%)  SOL(s)  STAT   GAP(%) | CMPL(s)  SOL(s)  STAT  TAG
----------------------------------------------------------------------------------------------------------------------------
-Armistead      |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Bachmann       |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Bertozzi       |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Blasi          |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Boehm          |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Borghans       |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Bruno          |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Crauste        |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Elowitz        |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Fiedler        |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Laske          |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Lucarelli      |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Okuonghae      |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Perelson       |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Rahman         |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-SalazarCavazos |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Schwen         |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Sneyd          |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Zhao           |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
-Zheng          |       -      -       -     -        - |       -      -       -     -        - |       -       -     -    -
----------------------------------------------------------------------------------------------------------------------------
+==============================================================================================================================
+               |        ExaModels + MadNLP (GPU)        |        ExaModels + MadNLP (CPU)        |  PEtab.jl + Best Optimizer 
+Model          | CMPL(s) EXA(%)   SOL(s)  STAT   ROG(-) | CMPL(s) EXA(%)   SOL(s)  STAT   ROG(-) | CMPL(s)   SOL(s)  STAT  TAG
+------------------------------------------------------------------------------------------------------------------------------
+Armistead      |  127.99    59%    0.697     0  +5.0e-3 |       -      -        -     -        - |    98.0    0.131    0F   GN
+Bachmann       |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Bertozzi       |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Blasi          |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Boehm          |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Borghans       |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Bruno          |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Crauste        |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Elowitz        |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Fiedler        |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Laske          |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Lucarelli      |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Okuonghae      |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Perelson       |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Rahman         |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+SalazarCavazos |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Schwen         |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Sneyd          |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Zhao           |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+Zheng          |       -      -        -     -        - |       -      -        -     -        - |       -        -     -    -
+------------------------------------------------------------------------------------------------------------------------------
 
 SUMMARY (ExaModelsPEtab target set: continuous + PEtab-solved)
   Target models          : 20       (of 35; 12 'Possible Discontinuities', 3 PEtab.jl failed compile)
-  ExaModels solved (GPU) :  0 / 20  (status 0 + 0A, full/acceptable optimum)
-  Solved-but-suboptimal  :  0       (0S / 0AS, converged but obj ≥+2.0% vs PEtab; excluded above)
+  ExaModels solved (GPU) :  1 / 20  (status 0 + 0A, full/acceptable optimum)
+  Solved-but-suboptimal  :  0       (0S / 0AS, converged but ROG ≥ 0.02 vs PEtab; excluded above)
 
-  Sources: GPU=[]  CPU=[]  PEtab=[]  (tag dirs under benchmark_results/)
+  Source dir: benchmark_results_focapo/  (GPU=exagpu_*, CPU=exacpu_*, PEtab=petab_<opt>_*, fastest optimizer shown)
   CMPL(s) := Model compilation time
   EXA(%)  := Fraction of model compile time spent on actual ExaModels build (PEtab setup + mesh generation)
   SOL(s)  := Solver solve time, shifted geometric mean (by δ = 10s) over n=5 reruns
   STAT    := Solver status
-  GAP(%)  := (petab.nllh(exa_p*) - petab_obj) / |petab_obj| × 100%  (negative => ExaModels lower)
+  ROG(-)  := relative objective gap = (petab.nllh(exa_p*) - petab_obj) / |petab_obj|  (negative => ExaModels lower)
   TAG     := Fastest PEtab optimizer for the model (IPN=Optim.IPNewton, GN=Fides.CustomHessian/GaussNewton, BFGS=Fides.BFGS)
 
   MadNLP (Status)
+     0 : SOLVE_SUCCEEDED
      - : compile_failed/not_run
 
   PEtab  (Status)
+    0F : Converged by objective (F), |Δf| ≤ ftol·|f| (with ‖g‖ > tol)
      - : compile_failed/not_run
 
-===========================================================================================================================
+==============================================================================================================================

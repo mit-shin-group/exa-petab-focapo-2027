@@ -1,0 +1,15 @@
+exagpu_compile_status=ok
+exagpu_compile_time=1172.29
+exagpu_constr_viol=0.9103107230803567
+exagpu_error=
+exagpu_iter=970
+exagpu_ncon=3358395
+exagpu_nvar=3358508
+exagpu_objective=-191.45621951623397
+exagpu_petab_obj=-1.4851449359885789
+exagpu_presolve_time=82.8
+exagpu_sgm_error=first solve term=MAXIMUM_WALLTIME_EXCEEDED∉{SUCCEEDED,ACCEPTABLE}; SGM skipped
+exagpu_sgm_status=skipped
+exagpu_solve_status=ok
+exagpu_solve_time=3601.66
+exagpu_term_status=MAXIMUM_WALLTIME_EXCEEDED

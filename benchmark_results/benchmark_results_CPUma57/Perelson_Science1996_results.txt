@@ -1,0 +1,16 @@
+exacpu_compile_status=ok
+exacpu_compile_time=104.76
+exacpu_constr_viol=4.050176357850432e-6
+exacpu_error=
+exacpu_iter=3
+exacpu_ncon=3192
+exacpu_nvar=3195
+exacpu_objective=432.0383578082126
+exacpu_petab_obj=432.03835780886067
+exacpu_presolve_time=47.48
+exacpu_sgm_solve_time=0.21
+exacpu_sgm_status=ok
+exacpu_solve_status=ok
+exacpu_solve_time=20.07
+exacpu_solve_times=0.05,0.05,0.06,0.87,0.05
+exacpu_term_status=SOLVE_SUCCEEDED

@@ -1,0 +1,15 @@
+exacpu_compile_status=ok
+exacpu_compile_time=926.08
+exacpu_constr_viol=1.9432421564117947e-6
+exacpu_error=
+exacpu_iter=24
+exacpu_ncon=597904
+exacpu_nvar=597988
+exacpu_objective=1674.7625844439685
+exacpu_petab_obj=1681.8274102378834
+exacpu_presolve_time=142.75
+exacpu_sgm_error=first solve term=MAXIMUM_WALLTIME_EXCEEDED∉{SUCCEEDED,ACCEPTABLE}; SGM skipped
+exacpu_sgm_status=skipped
+exacpu_solve_status=ok
+exacpu_solve_time=3740.0
+exacpu_term_status=MAXIMUM_WALLTIME_EXCEEDED

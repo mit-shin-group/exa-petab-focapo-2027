@@ -1,0 +1,17 @@
+petab_compile_status=ok
+petab_compile_time=371.95
+petab_error=
+petab_fconverged=false
+petab_gconverged=false
+petab_gresidual=9.212147523984083
+petab_has_events=false
+petab_iter=2
+petab_objective=-278.33879472749305
+petab_optimum_found=true
+petab_retcode=true
+petab_sgm_solve_time=17.29
+petab_sgm_status=ok
+petab_solve_status=ok
+petab_solve_time=48.6
+petab_solve_times=18.64,16.99,16.83,17.06,16.98
+petab_xconverged=true

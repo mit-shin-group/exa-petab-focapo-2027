@@ -1,0 +1,13 @@
+exacpu_compile_status=ok
+exacpu_compile_time=1102.59
+exacpu_constr_viol=
+exacpu_error=
+exacpu_iter=
+exacpu_ncon=3358395
+exacpu_nvar=3358508
+exacpu_objective=
+exacpu_petab_obj=
+exacpu_presolve_time=83.92
+exacpu_solve_status=timeout
+exacpu_solve_time=
+exacpu_term_status=

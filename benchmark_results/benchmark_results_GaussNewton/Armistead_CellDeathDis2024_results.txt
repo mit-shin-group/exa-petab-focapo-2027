@@ -1,0 +1,17 @@
+petab_compile_status=ok
+petab_compile_time=102.11
+petab_error=
+petab_fconverged=true
+petab_gconverged=false
+petab_gresidual=
+petab_has_events=false
+petab_iter=2
+petab_objective=-301.9161823694869
+petab_optimum_found=true
+petab_retcode=FTOL
+petab_sgm_solve_time=0.13
+petab_sgm_status=ok
+petab_solve_status=ok
+petab_solve_time=41.46
+petab_solve_times=0.12,0.11,0.24,0.09,0.1
+petab_xconverged=false

@@ -1,0 +1,13 @@
+exacpu_compile_status=ok
+exacpu_compile_time=371.49
+exacpu_constr_viol=
+exacpu_error=DomainError with -77.08498566597575: log was called with a negative real argument but will only return a complex result if called with a complex argument. Try log(Complex(x)).
+exacpu_iter=
+exacpu_ncon=37586
+exacpu_nvar=37614
+exacpu_objective=
+exacpu_petab_obj=
+exacpu_presolve_time=74.77
+exacpu_solve_status=error
+exacpu_solve_time=
+exacpu_term_status=

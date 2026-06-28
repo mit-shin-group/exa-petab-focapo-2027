@@ -1,12 +1,10 @@
 # results_plot.jl — single scatter figure of solver speedup vs PEtab.jl over the exa target set.
-#   x = nvar (NLP size), log10            — exa GPU and CPU share a model's nvar; PEtab points are
-#                                            placed at that same model's nvar (PEtab has no NLP).
-#   y = SGM10-time speedup vs PEtab.jl    — petab_best_sgm / solver_sgm  (log10). PEtab ⇒ 1 (the 10^0 line).
+#   x = nvar (NLP size), log10 — PEtab points placed at the model's exa nvar.
+#   y = SGM10-time speedup vs PEtab.jl — petab_best_sgm / solver_sgm (log10). PEtab ⇒ 1.
 # Three series (legend order): ExaModels MadNLP (GPU), ExaModels MadNLP (CPU), PEtab.jl + Best optimizer (CPU).
 #
-# Like results_table.jl, columns come from DIFFERENT per-tag dirs under benchmark_results/:
-#   GPU   <- the GPU tag (exagpu_*);  CPU <- the pinned CPU tag (CPU_PIN = CPUma57) (exacpu_*);
-#   PEtab <- FASTEST converged of the PEtab optimizer tags per model (petab_*).
+# All series come from the one results dir (BENCH_TAG), by key prefix: GPU exagpu_*, CPU exacpu_*,
+# PEtab petab_<label>_* (fastest converged optimizer per model).
 #
 # Usage: julia --project=. benchmark_helpers/results_plot.jl   # writes results_plot.png at repo root.
 
@@ -15,22 +13,9 @@ using Plots.PlotMeasures   # mm units for plot margins
 gr()
 
 const HERE      = @__DIR__
-include(joinpath(HERE, "..", "options.jl"))   # model sets, shifted_geomean, BENCH_*
+include(joinpath(HERE, "..", "options.jl"))   # model sets, t_sgmdelta, BENCH_*
 
-# ─── tag discovery + per-backend source selection (mirrors results_table.jl) ─────
-const RESULTS_ROOT = joinpath(HERE, "..", "benchmark_results")
-available_tags() = sort(String[replace(d, "benchmark_results_" => "")
-    for d in readdir(RESULTS_ROOT)
-    if isdir(joinpath(RESULTS_ROOT, d)) && startswith(d, "benchmark_results_") && d != "benchmark_results_0"])
-tagdir(t) = joinpath(RESULTS_ROOT, "benchmark_results_$t")
-
-const TAGS       = available_tags()
-const GPU_TAGS   = filter(==("GPU"), TAGS)
-const CPU_PIN    = "CPUma57"   # set to nothing to take the fastest across all CPUma* tags
-const CPU_TAGS   = CPU_PIN === nothing ? filter(t -> startswith(t, "CPUma"), TAGS) :
-                                         filter(==(CPU_PIN), TAGS)
-const PETAB_TAGS = filter(t -> t in ("IPNewton", "GaussNewton", "BFGS"), TAGS)
-
+# ─── single results dir (the configured BENCH_TAG); backends/optimizers by key prefix ─────
 function read_result(dir, m)
     d = Dict{String,String}(); p = joinpath(dir, "$(m)_results.txt")
     isfile(p) || return d
@@ -40,15 +25,26 @@ function read_result(dir, m)
     end
     d
 end
+read_model(m) = read_result(RESULTDIR, m)
 
-# SGM10 [s] for a backend prefix: report-time shift from raw solve_times when present, else the
-# stored aggregate (legacy files). Returns nothing if there is no warm timing.
+# PEtab optimizer labels present (petab_<label>_solve_status keys).
+function petab_labels(d)
+    labs = String[]
+    for k in keys(d)
+        mt = match(r"^petab_(.+)_solve_status$", k)
+        mt !== nothing && push!(labs, mt.captures[1])
+    end
+    sort!(unique!(labs))
+end
+
+# SGM10 [s] for a backend prefix: shift from raw solve_times when present, else the stored
+# aggregate. Returns nothing if there is no warm timing.
 function sgm10(d, pfx)
     get(d, pfx * "sgm_status", "") == "ok" || return nothing
     raw = get(d, pfx * "solve_times", "")
     if !isempty(raw)
         ts = Float64[x for x in (tryparse(Float64, s) for s in split(raw, ",")) if x !== nothing]
-        !isempty(ts) && return shifted_geomean(ts, BENCH_SGM_SHIFT)
+        !isempty(ts) && return t_sgmdelta(ts, BENCH_SGM_SHIFT)
     end
     tryparse(Float64, get(d, pfx * "sgm_solve_time", ""))
 end
@@ -60,15 +56,10 @@ function get_nvar(d)
     return nothing
 end
 
-# ROG and MadNLP status code, mirroring results_table.jl. A SOLVE_SUCCEEDED/ACCEPTABLE whose objective
-# is ≥ SUBOPT_ROG worse than PEtab's (dimensionless relative objective gap) is converged-but-suboptimal
-# (0S / 0AS) — often a fast bail to a worse optimum — and is EXCLUDED so the plot shows only 0 / 0A.
+# MadNLP status code with ROG. A SUCCEEDED/ACCEPTABLE whose objective is ≥ SUBOPT_ROG worse than
+# PEtab's (relative objective gap) is converged-but-suboptimal (0S/0AS) and is excluded; plot shows only 0/0A.
 const SUBOPT_ROG = 0.02
-# `po` is PEtab's reference optimum (key `petab_objective`), which lives in the PEtab tag dict, NOT
-# the ExaModels dict `d`. It MUST be passed in: scoring the ROG against a value read off `d` (which
-# only has `<pfx>petab_obj`, the PEtab objective AT the exa solution) silently zeroes the gap, so the
-# suboptimal `S` flag never fires and 0S/0AS points get plotted instead of X'd. Same bug class as the
-# results_table.jl fix.
+# `po` is PEtab's reference optimum (the winning optimizer's objective), passed in as the ROG denominator.
 function gap_val(d, pfx, po)
     eo = tryparse(Float64, get(d, pfx * "petab_obj", ""))
     eo === nothing && (eo = tryparse(Float64, get(d, pfx * "objective", "")))
@@ -90,39 +81,17 @@ function madnlp_code(d, pfx, po)
     end
     return "5"
 end
-# PEtab reference optimum for model m (or nothing) — the ROG denominator scored against the exa obj.
-petab_ref_obj(pd) = tryparse(Float64, get(pd, "petab_objective", ""))
-
-# Best converged PEtab baseline for model m: fastest petab_sgm across the PEtab optimizer tags.
-# Returns (dict, sgm) or (empty, nothing) if no PEtab tag converged on this model.
-function pick_petab(m)
-    best = nothing
-    for t in PETAB_TAGS
-        d = read_result(tagdir(t), m)
-        get(d, "petab_optimum_found", "") == "true" || continue
-        s = sgm10(d, "petab_"); (s === nothing || s <= 0) && continue
-        (best === nothing || s < best[2]) && (best = (d, s))
+# Fastest converged PEtab optimizer for a model: returns (prefix, sgm10, reference_objective).
+function pick_petab(d)
+    best = nothing  # (pfx, sgm)
+    for lab in petab_labels(d)
+        pfx = "petab_$(lab)_"
+        get(d, pfx * "optimum_found", "") == "true" || continue
+        s = sgm10(d, pfx); (s === nothing || s <= 0) && continue
+        (best === nothing || s < best[2]) && (best = (pfx, s))
     end
-    best === nothing ? (Dict{String,String}(), nothing) : best
-end
-# Single GPU tag dict (or empty); fastest converged CPU tag (by exacpu SGM) or empty.
-gpu_result(m) = isempty(GPU_TAGS) ? Dict{String,String}() : read_result(tagdir(GPU_TAGS[1]), m)
-function pick_cpu(m, po)
-    best = nothing
-    for t in CPU_TAGS
-        d = read_result(tagdir(t), m)
-        madnlp_code(d, "exacpu_", po) in ("0", "0A") || continue
-        s = sgm10(d, "exacpu_"); (s === nothing || s <= 0) && continue
-        (best === nothing || s < best[2]) && (best = (d, s))
-    end
-    best === nothing ? (Dict{String,String}(), nothing) : best
-end
-# nvar from whichever exa tag built the model (GPU first, then CPU tags).
-function model_nvar(m)
-    for t in vcat(GPU_TAGS, CPU_TAGS)
-        v = get_nvar(read_result(tagdir(t), m)); v !== nothing && return v
-    end
-    nothing
+    best === nothing && return ("", nothing, nothing)
+    (best[1], best[2], tryparse(Float64, get(d, best[1] * "objective", "")))
 end
 
 # Julia logo colors
@@ -135,17 +104,17 @@ cpu_x = Float64[]; cpu_y = Float64[]
 pet_x  = Float64[]; pet_y  = Float64[]   # PEtab baseline where ExaModels (GPU) also solved (0/0A)
 petx_x = Float64[]; petx_y = Float64[]   # PEtab solved but ExaModels (GPU) did NOT ⇒ X'd boxes
 for m in BENCHMARK_MODELS
-    pd, pt = pick_petab(m); (pt === nothing || pt <= 0) && continue  # PEtab baseline must have solved
-    po = petab_ref_obj(pd)                                           # ROG denominator (PEtab optimum)
-    nv = model_nvar(m);     nv === nothing && continue               # never built ⇒ no x position
-    gd = gpu_result(m)
-    if madnlp_code(gd, "exagpu_", po) in ("0", "0A")                 # GPU solved cleanly (0/0A only; 0S/0AS excluded)
-        g = sgm10(gd, "exagpu_"); (g !== nothing && g > 0) && (push!(gpu_x, nv); push!(gpu_y, pt / g))
+    d = read_model(m)
+    _, pt, po = pick_petab(d); (pt === nothing || pt <= 0) && continue  # PEtab baseline must have solved
+    nv = get_nvar(d); nv === nothing && continue                        # never built ⇒ no x position
+    if madnlp_code(d, "exagpu_", po) in ("0", "0A")                     # GPU solved cleanly (0/0A only; 0S/0AS excluded)
+        g = sgm10(d, "exagpu_"); (g !== nothing && g > 0) && (push!(gpu_x, nv); push!(gpu_y, pt / g))
         push!(pet_x, nv); push!(pet_y, 1.0)
-    else                                                             # PEtab solved but GPU failed/suboptimal
+    else                                                                # PEtab solved but GPU failed/suboptimal
         push!(petx_x, nv); push!(petx_y, 1.0)
     end
-    _, c = pick_cpu(m, po); (c !== nothing && c > 0) && (push!(cpu_x, nv); push!(cpu_y, pt / c))  # CPU independent
+    c = sgm10(d, "exacpu_")                                             # CPU independent (only if converged)
+    (c !== nothing && c > 0 && madnlp_code(d, "exacpu_", po) in ("0", "0A")) && (push!(cpu_x, nv); push!(cpu_y, pt / c))
 end
 
 # ticks at every order of 10 over the data range
@@ -153,7 +122,7 @@ prange(v) = isempty(v) ? (0:0) : (floor(Int, log10(minimum(v))):ceil(Int, log10(
 xt = [10.0^k for k in prange(vcat(gpu_x, cpu_x, pet_x, petx_x))]
 yt = [10.0^k for k in prange(vcat(gpu_y, cpu_y, pet_y, petx_y))]
 
-# common x-range (small log-padding) so the axis + trend lines span the full plot, edge to edge
+# common x-range with small log-padding so axis + trend lines span the full plot
 _xa = vcat(gpu_x, cpu_x, pet_x, petx_x)
 _xlo, _xhi = isempty(_xa) ? (1.0, 10.0) : extrema(_xa)
 _pf  = (_xhi / _xlo) ^ 0.02            # ~2% log-padding each side
@@ -183,8 +152,8 @@ plt = scatter(gpu_x, gpu_y;
               grid       = true,                     # gridlines on/off
               gridalpha  = 0.2,                      # gridline opacity
               framestyle = :box,                     # axes frame style
-              left_margin   = 3mm,                   # room for y-label (raise if clipped)
-              bottom_margin = 3mm,                   # room for x-label (raise if clipped)
+              left_margin   = 3mm,                   # room for y-label
+              bottom_margin = 3mm,                   # room for x-label
               top_margin    = 1mm,                   # room above plot
               right_margin  = 0mm)                   # room at right
 # ── series 2 & 3: only per-series overrides (shape, size, colors); cosmetics inherit from above ──
@@ -194,8 +163,8 @@ scatter!(plt, cpu_x, cpu_y;
 scatter!(plt, pet_x, pet_y;
          label = "PEtab.jl + Best optimizer (CPU)", marker = :square,    # red squares (baseline)
          ms = 6, mc = J_RED, msc = :black, msw = 1.0, malpha = 1.0)
-# PEtab solved but ExaModels did NOT reach an optimum: red box stamped with a black X.
-# Drawn as a red square with a black ✕ overlaid; the ✕ carries the legend entry.
+# PEtab solved but ExaModels did not reach an optimum: red square with a black ✕ overlaid;
+# the ✕ carries the legend entry.
 scatter!(plt, petx_x, petx_y;
          label = "", marker = :square,                             # red box (unlabeled; X overlay labels it)
          ms = 6, mc = J_RED, msc = :black, msw = 1.0, malpha = 1.0)
@@ -222,4 +191,4 @@ out = joinpath(HERE, "..", "results_plot.png")
 savefig(plt, out)
 println("saved: $out")
 println("points plotted — GPU: $(length(gpu_x)), CPU: $(length(cpu_x)), PEtab: $(length(pet_x)), PEtab-only (X'd): $(length(petx_x))")
-plt   # return the plot so `include("results_plot.jl")` displays it in the REPL / IDE plot pane
+plt   # return the plot so include displays it in the REPL / IDE plot pane

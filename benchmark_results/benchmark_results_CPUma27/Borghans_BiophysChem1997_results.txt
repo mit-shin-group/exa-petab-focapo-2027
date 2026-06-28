@@ -1,0 +1,13 @@
+exacpu_compile_status=ok
+exacpu_compile_time=118.54
+exacpu_constr_viol=
+exacpu_error=DomainError with -0.008941719891191725: Exponentiation yielding a complex result requires a complex argument. Replace x^y with (x+0im)^y, Complex(x)^y, or similar.
+exacpu_iter=
+exacpu_ncon=22155
+exacpu_nvar=22178
+exacpu_objective=
+exacpu_petab_obj=
+exacpu_presolve_time=47.82
+exacpu_solve_status=error
+exacpu_solve_time=
+exacpu_term_status=

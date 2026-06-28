@@ -1139,10 +1139,10 @@ uuid = "34c5aeac-e683-54a6-a0e9-6e0fdc586c50"
 version = "0.5.5"
 
 [[deps.HSL_jll]]
-deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "aab9a5a5233f6a919c785adcf3d16372f5937dfb"
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "METIS_jll", "libblastrampoline_jll"]
+path = "/scratch/HSL_jll.jl.v2025.7.21"
 uuid = "017b0a0e-03f4-516a-9b91-836bbd1904dd"
-version = "4.0.5+0"
+version = "2025.7.21+0"
 
 [[deps.HTTP]]
 deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "ExceptionUnwrapping", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "PrecompileTools", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]

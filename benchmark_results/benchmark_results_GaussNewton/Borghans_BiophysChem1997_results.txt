@@ -1,0 +1,18 @@
+petab_compile_status=ok
+petab_compile_time=105.75
+petab_error=
+petab_fconverged=false
+petab_gconverged=false
+petab_gresidual=
+petab_has_events=false
+petab_iter=8904
+petab_objective=-104.19153964793739
+petab_optimum_found=false
+petab_retcode=MAXTIME
+petab_sgm_error=first solve optimum_found=false≠true; SGM skipped
+petab_sgm_solve_time=
+petab_sgm_status=skipped
+petab_solve_status=ok
+petab_solve_time=3628.7
+petab_solve_times=
+petab_xconverged=false

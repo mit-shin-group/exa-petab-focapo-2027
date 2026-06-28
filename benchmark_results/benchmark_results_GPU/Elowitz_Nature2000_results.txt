@@ -1,0 +1,15 @@
+exagpu_compile_status=ok
+exagpu_compile_time=123.63
+exagpu_constr_viol=1.8548804064266733e-5
+exagpu_error=
+exagpu_iter=188
+exagpu_ncon=30524
+exagpu_nvar=30545
+exagpu_objective=-69.9469150371188
+exagpu_petab_obj=-22.915021749466874
+exagpu_presolve_time=48.78
+exagpu_sgm_error=first solve term=RESTORATION_FAILED∉{SUCCEEDED,ACCEPTABLE}; SGM skipped
+exagpu_sgm_status=skipped
+exagpu_solve_status=ok
+exagpu_solve_time=46.82
+exagpu_term_status=RESTORATION_FAILED

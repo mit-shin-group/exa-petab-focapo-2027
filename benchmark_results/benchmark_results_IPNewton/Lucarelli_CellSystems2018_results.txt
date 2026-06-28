@@ -1,0 +1,17 @@
+petab_compile_status=compiling
+petab_compile_time=
+petab_error=
+petab_fconverged=
+petab_gconverged=
+petab_gresidual=
+petab_has_events=
+petab_iter=
+petab_objective=
+petab_optimum_found=
+petab_retcode=
+petab_sgm_solve_time=
+petab_sgm_status=
+petab_solve_status=skipped
+petab_solve_time=
+petab_solve_times=
+petab_xconverged=

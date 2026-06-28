@@ -1,20 +1,15 @@
 # run_examodels.jl — ExaModelsPEtab + MadNLP benchmark (GPU or CPU)
 #
-# Builds petab_examodel and solves it with MadNLP using the LiftedKKT (condensed-space) regime —
-# the same SparseCondensedKKTSystem + RelaxEquality config on both backends; only the linear solver
-# differs (GPU: CUDSS, CPU: MadNLP's default for the condensed system). Results are written to
-# benchmark_results/{Model}_results.txt under a backend-specific prefix so the two backends and the
-# PEtab results coexist in one file:
+# Builds petab_examodel and solves it with MadNLP using the LiftedKKT (condensed-space) regime;
+# only the linear solver differs (GPU: CUDSS, CPU: MadNLP default). Results are written to
+# benchmark_results/{Model}_results.txt under a backend-specific prefix:
 #   BENCH_BACKEND=gpu (default) -> exagpu_*
 #   BENCH_BACKEND=cpu           -> exacpu_*
 #
-# For each solve we also store <prefix>petab_obj := PEtab's own objective evaluated at the ExaModels
-# optimal parameters (res.solution[1:Np], which live on PEtab's estimation scale) — the fair,
-# same-objective value behind results_table.jl's GAP(%) column.
+# Each solve also stores <prefix>petab_obj := PEtab's objective at the ExaModels optimum.
 #
-# Compilation timing splits into Phase 1 (PEtab setup + ODE presolve) and Phase 2 (ExaModels build);
-# both are stored, and after a converged first solve N_SGM_RERUNS warm reruns give the SGM solve time.
-# The run is resumable (terminal results are skipped); wrap with run_examodels.sh for watchdog restarts.
+# Compile timing splits into Phase 1 (PEtab setup + ODE presolve) and Phase 2 (ExaModels build);
+# after a converged first solve, N_SGM_RERUNS warm reruns give the SGM solve time. Resumable.
 #
 # Usage (GPU, strided one instance per GPU):
 #   julia --project=. -t 1 benchmark_helpers/run_examodels.jl <gpu_id> <num_instances> <instance_idx>
@@ -37,24 +32,25 @@ const ACCEPT_TOL    = BENCH_ACCEPT_TOL
 const ACCEPT_ITER   = BENCH_ACCEPT_ITER
 const WARMUP_MODEL  = BENCH_WARMUP_MODEL
 
-# Backend: "gpu" (CUDA + CUDSS, default) or "cpu" (no CUDA). PFX prefixes every result key so the
-# GPU and CPU runs write into the same {Model}_results.txt without clobbering each other.
+# Backend: "gpu" (CUDA + CUDSS, default) or "cpu". PFX prefixes every result key.
 const BACKEND = lowercase(get(ENV, "BENCH_BACKEND", "gpu"))
 const IS_GPU  = BACKEND != "cpu"
 const PFX     = IS_GPU ? "exagpu_" : "exacpu_"
 
-# LiftedKKT (condensed-space) MadNLP regime — same on both backends; only the linear solver differs
-# (GPU vs CPU). All passed straight through from options.jl.
+# LiftedKKT (condensed-space) MadNLP regime; passed through from options.jl.
 const KKT_OPTS = (kkt_system = BENCH_KKT_SYSTEM(),
                   equality_treatment = BENCH_EQUALITY_TREATMENT(),
                   fixed_variable_treatment = BENCH_FIXED_VAR_TREATMENT())
 const LINEAR_SOLVER = IS_GPU ? BENCH_GPU_SOLVER() : BENCH_CPU_SOLVER()
+# blas_num_threads gives Ma57's dense CPU factorization BENCH_CPU_THREADS BLAS threads (MadNLP pins
+# BLAS to 1 otherwise); irrelevant on GPU (CUDSS does the factorization), so 1 there.
 solve_madnlp(model) = madnlp(model; tol=TOL, acceptable_tol=ACCEPT_TOL, acceptable_iter=ACCEPT_ITER,
-    max_iter=MAX_ITER, max_wall_time=SOLVE_LIMIT, linear_solver=LINEAR_SOLVER, KKT_OPTS...)
+    max_iter=MAX_ITER, max_wall_time=SOLVE_LIMIT, linear_solver=LINEAR_SOLVER,
+    blas_num_threads = IS_GPU ? 1 : BENCH_CPU_THREADS, KKT_OPTS...)
 gpu_reclaim() = IS_GPU && (GC.gc(); CUDA.reclaim())
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Benchmarked set minus the shared warmup (Bruno, run separately via run_bruno.jl); override via BENCH_SUBSET.
+# Benchmarked set minus the warmup model; override via BENCH_SUBSET.
 const RUN_MODELS = haskey(ENV, "BENCH_SUBSET") ?
     String.(split(ENV["BENCH_SUBSET"], ',')) : filter(!=(BENCH_WARMUP_MODEL), BENCHMARK_MODELS)
 
@@ -74,7 +70,7 @@ function read_result(path)
     return d
 end
 
-# Read-modify-write: preserves keys from the other backend / PEtab in the same file.
+# Read-modify-write so the other backend's keys in the same file are preserved.
 function write_result(path, updates)
     existing = read_result(path)
     merged = merge(existing, Dict(string(k) => replace(string(v), '\n' => ' ', '\r' => ' ')
@@ -91,7 +87,7 @@ function with_hard_deadline(f, seconds::Real)
     try; return f(); finally; try; kill(w); catch; end; end
 end
 
-# Resumption: is this backend done with model m? (reads PFX-prefixed keys)
+# true if this backend has finished model m
 function exa_finished(m)
     d = read_result(result_path(m))
     cs  = get(d, PFX * "compile_status", "")
@@ -104,16 +100,14 @@ function exa_finished(m)
     return sgm in ("ok", "error", "skipped")
 end
 
-# PEtab's own objective at the ExaModels optimum: res.solution[1:Np] are the estimated parameters on
-# PEtab's estimation scale (warm-started from get_x), so PEprob.nllh of them is directly comparable
-# to petab_objective (the value calibrate minimized). Returns NaN if the eval fails.
+# PEtab's objective at the ExaModels optimum; NaN if the eval fails.
 function petab_obj_at_exa(PEprob, res)
     Np = PEprob.nparameters_estimate
     xstar = Array(res.solution)[1:Np]
     try; return PEprob.nllh(xstar); catch; return NaN; end
 end
 
-# inf-norm (max) constraint violation max(lcon - c(x), c(x) - ucon, 0) at point x; 0 if unconstrained.
+# max constraint violation max(lcon - c(x), c(x) - ucon, 0) at x; 0 if unconstrained
 function max_constr_viol(model, x)
     model.meta.ncon == 0 && return 0.0
     c = similar(x, model.meta.ncon); ExaModels.cons!(model, x, c)
@@ -121,7 +115,7 @@ function max_constr_viol(model, x)
     maximum(max.(lc .- c, c .- uc, 0.0))
 end
 
-# ─── build one ExaModel (compile phases 1+2); returns the PEtabODEProblem too ──
+# ─── build one ExaModel; returns the PEtabODEProblem too ──
 function build_model(yaml, t_origin)
     PEmodel = PEtab.PEtabModel(yaml)
     PEprob  = PEtab.PEtabODEProblem(PEmodel)
@@ -155,15 +149,15 @@ function run_sgm_reruns(m, rp, model)
         @info "[$m] SGM solve $i/$N_SGM_RERUNS ..."
         try
             t0 = time()
-            solve_madnlp(model)   # warm rerun (model already converged) — timed bare so the watchdog spawn doesn't inflate the SGM
-            push!(solve_times, round(time() - t0; digits=2))
+            solve_madnlp(model)   # warm rerun, timed bare
+            push!(solve_times, time() - t0)
         catch e
             @error "[$m] SGM solve $i failed" exception=(e, catch_backtrace())
             write_result(rp, Dict(PFX*"sgm_status" => "error", PFX*"sgm_error" => sprint(showerror, e)))
             return
         end
     end
-    sgm_solve = shifted_geomean(solve_times, SGM_SHIFT)
+    sgm_solve = t_sgmdelta(solve_times, SGM_SHIFT)
     write_result(rp, Dict(PFX*"sgm_status" => "ok",
                           PFX*"solve_times" => join(solve_times, ","), PFX*"sgm_solve_time" => sgm_solve))
     @info "[$m] SGM done: solve=$sgm_solve s (n=$N_SGM_RERUNS)"
@@ -201,8 +195,8 @@ function bench_one(m)
             model = mdl
             write_result(rp, Dict(
                 PFX*"compile_status" => "ok",
-                PFX*"compile_time"   => round(time() - t0; digits=2),
-                PFX*"presolve_time"  => round(t_phase1;    digits=2),
+                PFX*"compile_time"   => time() - t0,
+                PFX*"presolve_time"  => t_phase1,
                 PFX*"nvar" => nvar, PFX*"ncon" => ncon,
             ))
         catch e
@@ -211,7 +205,7 @@ function bench_one(m)
             return
         end
 
-        # ── SOLVE (first run; GPU includes one-time kernel JIT) ───────────────
+        # ── SOLVE (first run includes one-time JIT) ───────────────
         @info "[$m] solving with MadNLP/$BACKEND (max_wall_time=$(SOLVE_LIMIT)s)..."
         write_result(rp, Dict(PFX*"solve_status" => "solving"))
         try
@@ -219,7 +213,7 @@ function bench_one(m)
             res = with_hard_deadline(SOLVE_LIMIT + 3600.0) do; solve_madnlp(model); end
             write_result(rp, Dict(
                 PFX*"solve_status" => "ok",
-                PFX*"solve_time"   => round(time() - t0; digits=2),
+                PFX*"solve_time"   => time() - t0,
                 PFX*"term_status"  => string(res.status),
                 PFX*"objective"    => res.objective,
                 PFX*"petab_obj"    => petab_obj_at_exa(PEprob, res),
@@ -243,7 +237,7 @@ function bench_one(m)
                 PFX*"sgm_error" => "first solve term=$(get(d2, PFX*"term_status", ""))∉{SUCCEEDED,ACCEPTABLE}; SGM skipped"))
             @info "[$m] SGM skipped (solve term=$(get(d2, PFX*"term_status", "")))"
         else
-            if model === nothing  # resuming: rebuild silently (time not recorded), prime once
+            if model === nothing  # resuming: rebuild and prime once
                 yaml === nothing && return
                 @info "[$m] rebuilding for SGM (resume)..."
                 try
@@ -290,7 +284,7 @@ function main()
     end
     mkpath(RESULTDIR)
 
-    # Convert in-progress sentinels from a prior killed run to terminal states (this backend only)
+    # Convert in-progress sentinels from a killed run to terminal states (this backend only)
     for m in RUN_MODELS
         d = read_result(result_path(m))
         if get(d, PFX*"compile_status", "") == "compiling"

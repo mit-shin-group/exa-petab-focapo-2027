@@ -1,0 +1,25 @@
+# benchmark_results_IPNewton — options.jl configuration snapshot (auto-generated)
+BENCH_ACCEPT_ITER = 15
+BENCH_ACCEPT_TOL = 0.0001
+BENCH_COMPILE_LIMIT = 3600.0
+BENCH_CPU_SOLVER = "Ma27Solver"
+BENCH_EQUALITY_TREATMENT = "MadNLP.RelaxEquality"
+BENCH_FIXED_VAR_TREATMENT = "MadNLP.RelaxBound"
+BENCH_GPU_SOLVER = "MadNLPGPUCUDAExt.CUDSSSolver"
+BENCH_INCLUDE_EXA_CPU = false
+BENCH_INCLUDE_EXA_GPU = false
+BENCH_INCLUDE_PETAB = true
+BENCH_K = 4
+BENCH_KKT_SYSTEM = "MadNLP.SparseCondensedKKTSystem"
+BENCH_MAX_ITER = 100000000
+BENCH_PETAB_F_TOL = 1.0e-8
+BENCH_PETAB_HESSIAN = "ForwardDiff"
+BENCH_PETAB_OPTIMIZER = "IPNewton{typeof(Optim.backtrack_constrained_grad), Symbol}(Optim.backtrack_constrained_grad, :auto, false)"
+BENCH_PETAB_X_TOL = 1.0e-8
+BENCH_SGM_N = 5
+BENCH_SGM_SHIFT = 10
+BENCH_SOLVE_LIMIT = 3600.0
+BENCH_TAG = "IPNewton"
+BENCH_TOL = 1.0e-6
+BENCH_WARMUP_MODEL = "Bruno_JExpBot2016"
+n_benchmark_models = 20
