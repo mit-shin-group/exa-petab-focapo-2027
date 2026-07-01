@@ -69,7 +69,10 @@ gap_str(d, pfx, po) = (gp = gap_val(d, pfx, po); gp === nothing ? "-" :
 
 # MadNLP status code for backend pfx (exagpu_/exacpu_); po is the PEtab reference objective for ROG.
 function madnlp_code(d, pfx, po)
-    g(d, pfx * "compile_status") != "ok" && return "-"
+    cs = g(d, pfx * "compile_status")
+    cs == "timeout" && return "T"   # build exceeded COMPILE_LIMIT
+    cs == "error"   && return "E"   # build failed
+    cs != "ok"      && return "-"   # missing_yaml / skipped / not run
     ss = g(d, pfx * "solve_status")
     ss == "skipped" && return "-"
     ss == "timeout" && return "T"
@@ -84,14 +87,18 @@ function madnlp_code(d, pfx, po)
     occursin("WALLTIME",         term) && return "T"
     occursin("RESTORATION",      term) && return "R"
     occursin("SEARCH_DIRECTION", term) && return "D"
+    occursin("INFEASIBLE",       term) && return "I"
     return "5"
 end
 
 # PEtab status code for optimizer prefix pfx.
 function petab_code(d, pfx)
-    g(d, pfx * "compile_status") != "ok" && return "-"
+    cs = g(d, pfx * "compile_status")
+    cs == "timeout" && return "T"   # build exceeded COMPILE_LIMIT
+    cs == "error"   && return "E"   # build failed
+    cs != "ok"      && return "-"   # missing_yaml / skipped / not run
     ss = g(d, pfx * "solve_status")
-    ss in ("skipped", "timeout") && return "-"
+    ss == "timeout" && return "T"
     ss == "error" && return "E"
     if g(d, pfx * "optimum_found") == "true"
         # which convergence criterion fired; precedence: gradient → F objective → X step
@@ -213,8 +220,8 @@ madnlp_desc = Dict("0"=>"SOLVE_SUCCEEDED", "0A"=>"SOLVED_TO_ACCEPTABLE_LEVEL",
     "0S"=>"SOLVE_SUCCEEDED, suboptimal (ROG ≥ $(SUBOPT_ROG) vs PEtab)",
     "0AS"=>"SOLVED_TO_ACCEPTABLE_LEVEL, suboptimal (ROG ≥ $(SUBOPT_ROG) vs PEtab)",
     "T"=>"WALLTIME_EXCEEDED (timeout)", "R"=>"RESTORATION_FAILED", "D"=>"SEARCH_DIRECTION_BECOMES_TOO_SMALL",
-    "5"=>"other", "E"=>"Error", "-"=>"compile_failed/not_run")
-const MADNLP_ORDER = ["0","0A","0S","0AS","T","R","D","5","E","-"]
+    "I"=>"INFEASIBLE_PROBLEM_DETECTED", "5"=>"other", "E"=>"Error", "-"=>"compile_failed/not_run")
+const MADNLP_ORDER = ["0","0A","0S","0AS","T","R","D","I","5","E","-"]
 petab_desc = Dict(
     "0"  => "Converged by gradient, ‖g‖∞ ≤ tol",
     "0F" => "Converged by objective (F), |Δf| ≤ ftol·|f| (with ‖g‖ > tol)",

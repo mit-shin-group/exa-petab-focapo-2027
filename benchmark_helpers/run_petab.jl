@@ -86,9 +86,13 @@ function write_result(path, updates)
     end
 end
 
-function with_hard_deadline(f, seconds::Real)
+# Run f under a hard wall-clock deadline. If exceeded, an external watchdog creates `flag` (so a
+# genuine timeout is distinguishable on disk from an external kill like a reboot) then SIGKILLs us.
+function with_hard_deadline(f, seconds::Real; flag::AbstractString="")
     pid = getpid()
-    w = run(`bash -c "sleep $(seconds); kill -9 $(pid)"`; wait=false)
+    isempty(flag) || rm(flag; force=true)
+    touchcmd = isempty(flag) ? "" : "touch '$(flag)'; "
+    w = run(`bash -c "sleep $(seconds); $(touchcmd)kill -9 $(pid)"`; wait=false)
     try; return f(); finally; try; kill(w); catch; end; end
 end
 
@@ -140,10 +144,23 @@ function bench_optimizer(m, rp, yaml, pfx, opt, hess)
     isf  = is_fides(opt)
     opts = petab_options(isf)
 
+    # Resolve an in-progress sentinel from a killed run: a genuine watchdog timeout left a flag →
+    # record terminal timeout (skipped below); no flag ⇒ external kill (reboot) → leave in-progress
+    # so this optimizer re-runs. Flags are created by with_hard_deadline only when the deadline fires.
+    let d = read_result(rp), cflag = rp*".$(pfx)compiling", sflag = rp*".$(pfx)solving"
+        if get(d, pfx*"compile_status", "") == "compiling" && isfile(cflag)
+            write_result(rp, Dict(pfx*"compile_status" => "timeout", pfx*"compile_time" => string(COMPILE_LIMIT)))
+        elseif get(d, pfx*"solve_status", "") == "solving" && isfile(sflag)
+            write_result(rp, Dict(pfx*"solve_status" => "timeout", pfx*"sgm_status" => "skipped",
+                pfx*"sgm_error" => "solve timed out; SGM skipped"))
+        end
+        rm(cflag; force=true); rm(sflag; force=true)
+    end
+
     # resumability: skip if this optimizer is already terminal for this model
     d0 = read_result(rp)
     cs0 = get(d0, pfx*"compile_status", ""); ss0 = get(d0, pfx*"solve_status", "")
-    if cs0 in ("error", "missing_yaml") ||
+    if cs0 in ("error", "missing_yaml", "timeout") ||
        (cs0 == "ok" && ss0 in ("ok", "error", "timeout") &&
         (N_SGM_RERUNS == 0 || get(d0, pfx*"sgm_status", "") in ("ok", "error", "skipped")))
         @info "[$m] $pfx already terminal — skip"
@@ -179,7 +196,7 @@ function bench_optimizer(m, rp, yaml, pfx, opt, hess)
     PEprob = nothing
     try
         t0 = time()
-        PEprob = with_hard_deadline(COMPILE_LIMIT) do
+        PEprob = with_hard_deadline(COMPILE_LIMIT; flag=rp*".$(pfx)compiling") do
             p  = build_pe(yaml, hess)
             x0 = get_x(p); np = length(x0)
             # Prime nllh + grad; hess! best-effort (skipped when the problem is hessian-free).
@@ -198,7 +215,7 @@ function bench_optimizer(m, rp, yaml, pfx, opt, hess)
     write_result(rp, Dict(pfx*"solve_status" => "solving"))
     try
         t0 = time()
-        res = with_hard_deadline(SOLVE_LIMIT + 600.0) do
+        res = with_hard_deadline(SOLVE_LIMIT + 600.0; flag=rp*".$(pfx)solving") do
             calibrate(PEprob, get_x(PEprob), opt; options = opts)
         end
         # Record which convergence criterion fired (g/f/x):
@@ -252,29 +269,45 @@ function petab_all_terminal(rp)
     all(OPTIMIZERS) do opt
         p = "petab_$(petab_label(opt))_"
         cs = get(d, p*"compile_status", ""); ss = get(d, p*"solve_status", "")
-        cs in ("error", "missing_yaml") ||
+        cs in ("error", "missing_yaml", "timeout") ||
             (cs == "ok" && ss in ("ok", "error", "timeout") &&
              (N_SGM_RERUNS == 0 || get(d, p*"sgm_status", "") in ("ok", "error", "skipped")))
     end
 end
 
-# Run every optimizer in series for model m, each under its own petab_<label>_ prefix.
-function run_worker(m)
+# Run the model's optimizers, each under its own petab_<label>_ prefix. `which` selects scope:
+#   nothing   → all optimizers in this one process (legacy mode)
+#   ::Int     → only OPTIMIZERS[which]; running each optimizer in its own process isolates the
+#               watchdog kill -9 so one optimizer's timeout cannot take down the others
+#   :finalize → run no solves; only set petab_alldone if every optimizer is already terminal
+#               (a separate never-killed step, so alldone is recorded even if an optimizer was killed)
+function run_worker(m, which=nothing)
     mkpath(RESULTDIR)
     rp = result_path(m)
+    if which === :finalize
+        petab_all_terminal(rp) && write_result(rp, Dict("petab_alldone" => "true"))
+        return
+    end
     yaml = get_yaml(m)
+    idxs = which === nothing ? collect(eachindex(OPTIMIZERS)) : [which]
     if yaml === nothing
-        for opt in OPTIMIZERS
-            pfx = "petab_$(petab_label(opt))_"
+        for i in idxs
+            pfx = "petab_$(petab_label(OPTIMIZERS[i]))_"
             write_result(rp, Dict(pfx*"compile_status" => "missing_yaml", pfx*"solve_status" => "skipped"))
         end
     else
-        for (opt, hess) in zip(OPTIMIZERS, HESSIANS)
-            bench_optimizer(m, rp, yaml, "petab_$(petab_label(opt))_", opt, hess)
+        for i in idxs
+            bench_optimizer(m, rp, yaml, "petab_$(petab_label(OPTIMIZERS[i]))_", OPTIMIZERS[i], HESSIANS[i])
         end
     end
     petab_all_terminal(rp) && write_result(rp, Dict("petab_alldone" => "true"))
 end
 
-isempty(ARGS) && error("usage: run_petab.jl <model_name>")
-run_worker(ARGS[1])
+# usage: run_petab.jl <model> [<optimizer_index> | finalize]
+isempty(ARGS) && error("usage: run_petab.jl <model_name> [<optimizer_index>|finalize]")
+let which = length(ARGS) < 2 ? nothing :
+            ARGS[2] == "finalize" ? :finalize : parse(Int, ARGS[2])
+    which isa Int && !(1 <= which <= length(OPTIMIZERS)) &&
+        error("optimizer index $(which) out of range 1:$(length(OPTIMIZERS))")
+    run_worker(ARGS[1], which)
+end

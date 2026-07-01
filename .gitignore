@@ -5,6 +5,9 @@
 /benchmark_helpers/debugging/logs/
 /benchmark_helpers/debugging/archive/
 *.log
+# in-progress watchdog flags (sidecars next to <model>_results.txt)
+*_results.txt.*compiling
+*_results.txt.*solving
 
 # Fides (PythonCall/CondaPkg) generated conda env — large, regenerated on first use
 /.CondaPkg/

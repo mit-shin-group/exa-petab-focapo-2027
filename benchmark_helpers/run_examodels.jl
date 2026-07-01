@@ -81,9 +81,13 @@ function write_result(path, updates)
     end
 end
 
-function with_hard_deadline(f, seconds::Real)
+# Run f under a hard wall-clock deadline. If exceeded, an external watchdog creates `flag` (so a
+# genuine timeout is distinguishable on disk from an external kill like a reboot) then SIGKILLs us.
+function with_hard_deadline(f, seconds::Real; flag::AbstractString="")
     pid = getpid()
-    w = run(`bash -c "sleep $(seconds); kill -9 $(pid)"`; wait=false)
+    isempty(flag) || rm(flag; force=true)
+    touchcmd = isempty(flag) ? "" : "touch '$(flag)'; "
+    w = run(`bash -c "sleep $(seconds); $(touchcmd)kill -9 $(pid)"`; wait=false)
     try; return f(); finally; try; kill(w); catch; end; end
 end
 
@@ -189,7 +193,7 @@ function bench_one(m)
         local PEprob
         try
             t0 = time()
-            mdl, PEprob, nvar, ncon, t_phase1 = with_hard_deadline(COMPILE_LIMIT) do
+            mdl, PEprob, nvar, ncon, t_phase1 = with_hard_deadline(COMPILE_LIMIT; flag=rp*".$(PFX)compiling") do
                 build_model(yaml, t0)
             end
             model = mdl
@@ -210,7 +214,7 @@ function bench_one(m)
         write_result(rp, Dict(PFX*"solve_status" => "solving"))
         try
             t0 = time()
-            res = with_hard_deadline(SOLVE_LIMIT + 3600.0) do; solve_madnlp(model); end
+            res = with_hard_deadline(SOLVE_LIMIT + 3600.0; flag=rp*".$(PFX)solving") do; solve_madnlp(model); end
             write_result(rp, Dict(
                 PFX*"solve_status" => "ok",
                 PFX*"solve_time"   => time() - t0,
@@ -284,15 +288,25 @@ function main()
     end
     mkpath(RESULTDIR)
 
-    # Convert in-progress sentinels from a killed run to terminal states (this backend only)
+    # Resolve in-progress sentinels left by a killed run (this backend only). A genuine watchdog
+    # timeout left a .compiling/.solving flag → record terminal timeout. No flag ⇒ the kill was
+    # external (e.g. reboot) → clear the sentinel so the model re-runs. SGM has no watchdog, so a
+    # leftover 'running' is always an external kill → re-run.
     for m in RUN_MODELS
-        d = read_result(result_path(m))
+        rp = result_path(m); d = read_result(rp)
+        cflag = rp*".$(PFX)compiling"; sflag = rp*".$(PFX)solving"
         if get(d, PFX*"compile_status", "") == "compiling"
-            write_result(result_path(m), Dict(PFX*"compile_status" => "timeout", PFX*"compile_time" => string(COMPILE_LIMIT)))
+            isfile(cflag) ?
+                write_result(rp, Dict(PFX*"compile_status" => "timeout", PFX*"compile_time" => string(COMPILE_LIMIT))) :
+                write_result(rp, Dict(PFX*"compile_status" => "", PFX*"solve_status" => ""))
+            rm(cflag; force=true)
         elseif get(d, PFX*"compile_status", "") == "ok" && get(d, PFX*"solve_status", "") == "solving"
-            write_result(result_path(m), Dict(PFX*"solve_status" => "timeout"))
+            isfile(sflag) ?
+                write_result(rp, Dict(PFX*"solve_status" => "timeout")) :
+                write_result(rp, Dict(PFX*"solve_status" => ""))
+            rm(sflag; force=true)
         elseif get(d, PFX*"sgm_status", "") == "running"
-            write_result(result_path(m), Dict(PFX*"sgm_status" => "interrupted"))
+            write_result(rp, Dict(PFX*"sgm_status" => "interrupted"))
         end
     end
 

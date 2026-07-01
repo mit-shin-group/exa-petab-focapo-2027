@@ -128,6 +128,12 @@ _xlo, _xhi = isempty(_xa) ? (1.0, 10.0) : extrema(_xa)
 _pf  = (_xhi / _xlo) ^ 0.02            # ~2% log-padding each side
 XLIM = (_xlo / _pf, _xhi * _pf)
 
+# common y-range with the same ~2% log-padding each side
+_ya = vcat(gpu_y, cpu_y, pet_y, petx_y)
+_ylo, _yhi = isempty(_ya) ? (1.0, 10.0) : extrema(_ya)
+_pfy = (_yhi / _ylo) ^ 0.075
+YLIM = (_ylo / _pfy, _yhi * _pfy)
+
 # ── series 1: ExaModels + MadNLP (GPU). Global cosmetics live on this scatter() call. ──
 plt = scatter(gpu_x, gpu_y;
               label  = "ExaModels + MadNLP (GPU)",  # legend text
@@ -141,13 +147,14 @@ plt = scatter(gpu_x, gpu_y;
               yscale = :log10,                       # y log scale
               xticks = xt,                           # x ticks (powers of 10)
               yticks = yt,                           # y ticks (powers of 10)
-              xlims  = XLIM,                          # x-limits (trend lines span this)
+              xlims  = XLIM,                         # x-limits (trend lines span this)
+              ylims  = YLIM,                         # y-limits (±2% log-padding, like x)
               xlabel = "Number of variables",        # x axis label
               ylabel = "Speedup",                    # y axis label
               guidefontsize  = 15,                   # axis-label font size
               tickfontsize   = 11,                   # tick-number font size
-              legendfontsize = 11,                   # legend font size
-              legend     = :bottomright,                # legend position
+              legendfontsize = 10,                    # legend font size
+              legend     = (0.225, 0.925),             # upper-left quarter, fully inside the axes
               size       = (820, 420),               # figure size (px)
               grid       = true,                     # gridlines on/off
               gridalpha  = 0.2,                      # gridline opacity
