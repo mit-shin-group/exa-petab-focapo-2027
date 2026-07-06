@@ -7,7 +7,11 @@
 #   julia --project=. -t 1 benchmark_helpers/run_warmup.jl [gpu_id]
 #   BENCH_BACKEND=cpu julia --project=. -t 1 benchmark_helpers/run_warmup.jl
 
-using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, Optim, MadNLPHSL, Fides, LinearAlgebra
+using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, Optim, Fides, LinearAlgebra
+# HSL is a licensed, user-supplied dependency (see README); only the CPU pass needs it.
+if lowercase(get(ENV, "BENCH_BACKEND", "gpu")) == "cpu"
+    using MadNLPHSL
+end
 
 # ─── CONFIGURABLE SETTINGS (single source of truth = options.jl) ──────────────────
 include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + RESULTDIR + model sets + BENCH_* config

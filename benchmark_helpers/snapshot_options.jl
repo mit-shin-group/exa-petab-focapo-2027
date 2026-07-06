@@ -1,7 +1,14 @@
 # snapshot_options.jl — write the resolved benchmark config to the run's _config.toml.
 # Auto-introspects every BENCH_* setting from options.jl, resolving the zero-arg
 # solver/optimizer accessors to their objects. Loads the solver packages so those accessors resolve.
-using CUDA, MadNLP, MadNLPGPU, MadNLPHSL, CUDSS, Optim, Fides
+using CUDA, MadNLP, MadNLPGPU, CUDSS, Optim, Fides
+# HSL is a licensed, user-supplied dependency (see README). Load it if present so BENCH_CPU_SOLVER
+# resolves in CPU snapshots; if absent, resolve()'s try/catch records the accessor unresolved.
+try
+    using MadNLPHSL
+catch
+    @warn "MadNLPHSL not installed; CPU/HSL solver will be recorded unresolved in _config.toml"
+end
 include(joinpath(@__DIR__, "..", "options.jl"))
 mkpath(RESULTDIR)
 tomlval(v) = v isa Bool ? string(v) : v isa Number ? string(v) : "\"" * string(v) * "\""

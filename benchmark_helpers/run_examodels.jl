@@ -16,7 +16,11 @@
 # CPU (gpu_id arg ignored; run several instances to parallelize across cores):
 #   BENCH_BACKEND=cpu julia --project=. -t 1 benchmark_helpers/run_examodels.jl 0 <num_instances> <instance_idx>
 
-using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, MadNLPHSL
+using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels
+# HSL is a licensed, user-supplied dependency (see README); only the CPU pass needs it.
+if lowercase(get(ENV, "BENCH_BACKEND", "gpu")) == "cpu"
+    using MadNLPHSL
+end
 
 # ─── CONFIGURABLE SETTINGS (single source of truth = options.jl) ────────────────
 include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + RESULTDIR + model sets + BENCH_* config

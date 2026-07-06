@@ -4,16 +4,27 @@ This repository contains the scripts for reproducing the benchmark results in "R
 ## How to run the benchmark
 First, install Julia (we recommend [juliaup](https://github.com/JuliaLang/juliaup)).
 
-The GPU pass requires an NVIDIA GPU for CUDA + CUDSS. If a compatible GPU is not available, the GPU columns are skipped and the rest of the suite still runs.
+The MadNLP GPU benchmark requires an NVIDIA GPU to use CUDA and CUDSS. If a compatible GPU is not available, the GPU benchmarks are skipped.
 
-The CPU (HSL) runs (`ma27`/`ma57`/`ma97`, set via `BENCH_CPU_SOLVER` in `options.jl`) require a licensed [libHSL](https://licences.stfc.ac.uk/product/libhsl): download `HSL_jll.jl` from STFC and run `julia --project -e 'import Pkg; Pkg.develop(path="path/to/HSL_jll.jl"); Pkg.instantiate()'` before benchmarking. The GPU (CUDSS) and PEtab passes do not need it.
+The MadNLP CPU benchmark requires installing [libHSL](https://licences.stfc.ac.uk/product/libhsl) with a valid license to use the HSL solvers `ma27`, `ma57`, or `ma97`.
 
-Otherwise, instantiate the pinned dependencies and run:
+Instantiate the project with:
+```
+$ cd path/to/exa-petab-focapo-2027
+$ julia --project -e 'import Pkg; Pkg.instantiate()'
+```
+
+For the CPU run, also add your own HSL:
+```
+$ julia --project -e 'import Pkg; Pkg.develop(path="path/to/HSL_jll.jl"); Pkg.add("MadNLPHSL"); Pkg.instantiate()'
+```
+
+Then, run the script with:
 ```
 $ julia --project -e 'import Pkg; Pkg.instantiate()'
 $ bash run_benchmarks.sh
 ```
-This runs the full suite and writes `results_table.txt` and `results_plot.png`. 
+This runs the full benchmark suite and writes `results_table.txt` and `results_plot.png`. 
 
 ## Benchmark options
 All ExaModels.jl, MadNLP.jl, PEtab.jl and its solver options can be configured in `options.jl`.
@@ -34,4 +45,4 @@ For tagged runs that are complete, `run_benchmarks.sh` only regenerates the tabl
 The reference run for the paper is `benchmark_results/benchmark_results_focapo/` (set `BENCH_TAG = "focapo"` in `options.jl`), generated with the options chosen for a fair comparison between ExaModels and PEtab.
 
 ## Issues
-For support, please contact [@sshin23](https://github.com/sshin23).
+For support, contact [@jsphchoi](https://github.com/jsphchoi).
