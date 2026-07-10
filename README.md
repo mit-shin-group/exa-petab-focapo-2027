@@ -12,7 +12,7 @@ $ make -C benchmark hsl HSL=/full/path/to/HSL_jll.jl
 
 Run the benchmark with
 ```
-make -C benchmark
+$ make -C benchmark
 ```
 
 ## Benchmark options
