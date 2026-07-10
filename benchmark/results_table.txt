@@ -1,0 +1,54 @@
+==============================================================================================================================
+               |        ExaModels + MadNLP (GPU)        |        ExaModels + MadNLP (CPU)        |  PEtab.jl + Best Optimizer 
+Model          | CMPL(s) EXA(%)   SOL(s)  STAT   ROG(-) | CMPL(s) EXA(%)   SOL(s)  STAT   ROG(-) | CMPL(s)   SOL(s)  STAT  TAG
+------------------------------------------------------------------------------------------------------------------------------
+Armistead      |    76.5    58%    0.470     0  +5.1e-3 |  125.28    57%    0.463     0  +2.3e-6 |   52.26    0.132    0F   GN
+Bachmann       | 1182.84    93% 3601.898     T  +7.7e-1 |  1119.9    92% 3626.267     T  +5.6e-1 |  133.71   23.336    0F   GN
+Bertozzi       |   72.66    55%    0.199    0S  +1.9e+0 |  118.29    54%    0.278    0S  +1.9e+0 |    0.38    0.189    0F BFGS
+Blasi          |  106.52    67%    0.279     0  +2.0e-7 |  158.31    64%    0.013     0  -3.0e-7 |    0.35    0.692    0F BFGS
+Boehm          |   86.95    64%    0.329     0  -1.4e-7 |  127.51    61%    0.548     0  -1.6e-7 |  355.28    0.009     0  IPN
+Borghans       |  120.96    60%        -     R  +8.8e-1 |  120.78    59%        -     E        - |   18.63   89.965    0F BFGS
+Bruno          |   76.61    59%    0.221     0  +1.6e-8 |   76.99    57%    0.418     0 +7.0e-11 |   34.33    0.487    0F   GN
+Crauste        |   63.07    57%    0.199     0  +1.2e-3 |  108.32    57%    0.445     0  +8.1e-6 |   49.33    0.434    0F   GN
+Elowitz        |  124.41    61%        -     R  +8.9e-1 |  120.84    59%        -     I  +1.0e-4 |   53.75   18.587    0F   GN
+Fiedler        |  3320.9    97%        -     E        - | 3430.81    97%        -     T        - |  481.06    0.014     0  IPN
+Laske          |  703.48    88%   21.348    0S  +6.5e-2 | 1039.86    87%  182.912    0S  +6.4e-2 |   59.23   24.660    0F   GN
+Lucarelli      |  1013.3    86% 3603.611     T  +2.7e-2 |  939.84    85% 3703.467     T  +4.9e-4 |  284.16  221.146    0F BFGS
+Okuonghae      |   87.31    64%    4.724    0S  +5.2e-2 |   142.4    62%    5.606   0AS  +1.6e-1 |    0.46   10.856    0F BFGS
+Perelson       |   64.43    56%    0.433     0  +4.7e-3 |  105.51    55%    0.055    0S  +9.4e-1 |    0.14    0.135    0F BFGS
+Rahman         |  107.66    72%    0.215     0  +2.1e-7 |  171.39    70%    0.364     0  +1.9e-7 |   48.08    0.233    0F   GN
+SalazarCavazos |  759.99    85%   39.833     0  +8.9e-4 | 1073.75    87%  481.771     0  +8.9e-4 |  257.35  215.807    0F   GN
+Schwen         |  111.13    71%   29.873    0A  +3.9e-6 |  174.75    68%  115.227    0A  +2.8e-7 |   47.48    6.529    0F BFGS
+Sneyd          |  118.28    86%    2.765     0  +3.4e-5 |  197.43    85%  193.974    0A  +1.2e-6 |    4.67    5.744    0F BFGS
+Zhao           |  241.39    81%   50.082   0AS  +8.0e-2 |  389.42    80%  185.255   0AS  +1.8e-1 |    0.19   15.046    0F BFGS
+Zheng          |  320.27    82%   13.679     0  +2.9e-3 |  492.59    80%   54.917    0A  +1.0e-5 |    0.66    2.700    0F BFGS
+------------------------------------------------------------------------------------------------------------------------------
+
+SUMMARY (ExaModelsPEtab target set: continuous + PEtab-solved)
+  Target models          : 20       (of 35; 12 'Possible Discontinuities', 3 PEtab.jl failed compile)
+  ExaModels solved (GPU) : 11 / 20  (status 0 + 0A, full/acceptable optimum)
+  Solved-but-suboptimal  :  4       (0S / 0AS, converged but ROG ≥ 0.02 vs PEtab; excluded above)
+
+  Source dir: benchmark_results_focapo/  (GPU=exagpu_*, CPU=exacpu_*, PEtab=petab_<opt>_*, fastest optimizer shown)
+  CMPL(s) := Model compilation time
+  EXA(%)  := Fraction of model compile time spent on actual ExaModels build (PEtab setup + mesh generation)
+  SOL(s)  := Solver solve time, shifted geometric mean (by δ = 0.01s) over n=5 reruns
+  STAT    := Solver status
+  ROG(-)  := relative objective gap = (petab.nllh(exa_p*) - petab_obj) / |petab_obj|  (negative => ExaModels lower)
+  TAG     := Fastest PEtab optimizer for the model (IPN=Optim.IPNewton, GN=Fides.CustomHessian/GaussNewton, BFGS=Fides.BFGS)
+
+  MadNLP (Status)
+     0 : SOLVE_SUCCEEDED
+    0A : SOLVED_TO_ACCEPTABLE_LEVEL
+    0S : SOLVE_SUCCEEDED, suboptimal (ROG ≥ 0.02 vs PEtab)
+   0AS : SOLVED_TO_ACCEPTABLE_LEVEL, suboptimal (ROG ≥ 0.02 vs PEtab)
+     T : WALLTIME_EXCEEDED (timeout)
+     R : RESTORATION_FAILED
+     I : INFEASIBLE_PROBLEM_DETECTED
+     E : Error
+
+  PEtab  (Status)
+     0 : Converged by gradient, ‖g‖∞ ≤ tol
+    0F : Converged by objective (F), |Δf| ≤ ftol·|f| (with ‖g‖ > tol)
+
+==============================================================================================================================

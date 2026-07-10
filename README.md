@@ -2,29 +2,18 @@
 This repository contains the scripts for reproducing the benchmark results in "REVISITING SIMULTANEOUS METHODS FOR DYNAMIC OPTIMIZATION IN THE GPU ERA" by Joseph W. Choi and Sungho Shin.
 
 ## How to run the benchmark
-First, install Julia (we recommend [juliaup](https://github.com/JuliaLang/juliaup)).
-
-The MadNLP GPU benchmark requires an NVIDIA GPU to use CUDA and CUDSS. If a compatible GPU is not available, the GPU benchmarks are skipped.
-
-The MadNLP CPU benchmark requires installing [libHSL](https://licences.stfc.ac.uk/product/libhsl) with a valid license to use the HSL solvers `ma27`, `ma57`, or `ma97`.
-
-Instantiate the project with:
+The following hardware/software/licenses are required to run the benchmark:
+* an NVIDIA GPU
+* [julia](https://julialang.org/downloads/): we recommend [juliaup](https://github.com/JuliaLang/juliaup)
+* [libHSL](https://licences.stfc.ac.uk/product/libhsl): a library for sparse linear algebra. After downloading, install `HSL_jll` into the benchmark project with
 ```
-$ cd path/to/exa-petab-focapo-2027
-$ julia --project -e 'import Pkg; Pkg.instantiate()'
+$ make -C benchmark hsl HSL=/full/path/to/HSL_jll.jl
 ```
 
-For the CPU run, also add your own HSL:
+Run the benchmark with
 ```
-$ julia --project -e 'import Pkg; Pkg.develop(path="path/to/HSL_jll.jl"); Pkg.add("MadNLPHSL"); Pkg.instantiate()'
+make -C benchmark
 ```
-
-Then, run the script with:
-```
-$ julia --project -e 'import Pkg; Pkg.instantiate()'
-$ bash run_benchmarks.sh
-```
-This runs the full benchmark suite and writes `results_table.txt` and `results_plot.png`. 
 
 ## Benchmark options
 All ExaModels.jl, MadNLP.jl, PEtab.jl and its solver options can be configured in `options.jl`.
@@ -42,7 +31,7 @@ $ bash run_benchmarks.sh   # -> benchmark_results/benchmark_results_ma57/
 For tagged runs that are complete, `run_benchmarks.sh` only regenerates the table and plot by pulling the figure options from `/benchmark_helpers`.
 
 ## Existing results
-The reference run for the paper is `benchmark_results/benchmark_results_focapo/` (set `BENCH_TAG = "focapo"` in `options.jl`), generated with the options chosen for a fair comparison between ExaModels and PEtab.
+The reference run for the paper is `benchmark_results/benchmark_results_focapo/` (set `BENCH_TAG = "focapo"` in `options.jl`). The `_config.toml` file contains all of the options used.
 
 ## Issues
 For support, contact [@jsphchoi](https://github.com/jsphchoi).

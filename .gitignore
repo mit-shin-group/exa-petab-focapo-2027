@@ -1,13 +1,5 @@
-# NOTE: the top-level Manifest.toml is intentionally COMMITTED — it pins the exact
-# package versions used to generate every benchmark number/figure (reproducibility).
-
-# benchmark run artifacts (transient / large)
-/benchmark_helpers/debugging/logs/
-/benchmark_helpers/debugging/archive/
+/benchmark/benchmark_helpers/logs/
 *.log
-# in-progress watchdog flags (sidecars next to <model>_results.txt)
 *_results.txt.*compiling
 *_results.txt.*solving
-
-# Fides (PythonCall/CondaPkg) generated conda env — large, regenerated on first use
-/.CondaPkg/
+/benchmark/.CondaPkg/
