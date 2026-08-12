@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "6b0c5722f18bc88a529b53495f67e03c51ce91dc"
+project_hash = "e3e10d1ef559be45b337fbf87e40e62f901222b5"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "bbc22a9a08a0ef6460041086d8a7b27940ed4ffd"
@@ -802,13 +802,17 @@ version = "0.11.1"
     SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
     oneAPI = "8f75cd03-7ff8-4ecb-9b8f-daf728133b1b"
 
-[[deps.ExaModelsPEtab]]
-deps = ["ExaModels", "LinearAlgebra", "ModelingToolkitBase", "OrdinaryDiffEq", "PEtab", "Symbolics"]
-git-tree-sha1 = "7639072e880a430274bfe43fc707f7318f29e060"
-repo-rev = "v0.1.0"
-repo-url = "https://github.com/mit-shin-group/ExaModelsPEtab.jl"
-uuid = "449f6601-3844-48f4-990d-d57d890903df"
+[[deps.ExaModelsCollocation]]
+deps = ["ExaModels", "FastGaussQuadrature"]
+path = "/home/jsphchoi/.julia/dev/ExaModelsCollocation.jl"
+uuid = "806a8761-d632-41d1-aec4-b1285f27c7c5"
 version = "0.1.0-DEV"
+
+[[deps.ExaModelsPEtab]]
+deps = ["ExaModels", "ExaModelsCollocation", "LinearAlgebra", "ModelingToolkitBase", "OrdinaryDiffEq", "PEtab", "Symbolics"]
+path = "/home/jsphchoi/.julia/dev/ExaModelsPEtab.jl"
+uuid = "449f6601-3844-48f4-990d-d57d890903df"
+version = "0.1.0"
 
 [[deps.ExceptionUnwrapping]]
 deps = ["Test"]
@@ -862,6 +866,12 @@ version = "1.3.2"
 git-tree-sha1 = "acebe244d53ee1b461970f8910c235b259e772ef"
 uuid = "9aa1b823-49e4-5ca5-8b0f-3971ec8bab6a"
 version = "0.3.2"
+
+[[deps.FastGaussQuadrature]]
+deps = ["LinearAlgebra", "SpecialFunctions", "StaticArrays"]
+git-tree-sha1 = "4916117dd032ec5959b7633aedbbac408ca5ddeb"
+uuid = "442a2c76-b920-505d-bb47-c5924d526838"
+version = "1.3.0"
 
 [[deps.FastPower]]
 git-tree-sha1 = "862831f78c7a48681a074ecc9aac09f2de563f71"

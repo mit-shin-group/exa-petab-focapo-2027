@@ -128,15 +128,19 @@ function build_model(yaml, t_origin)
     PEmodel = PEtab.PEtabModel(yaml)
     PEprob  = PEtab.PEtabODEProblem(PEmodel)
     backend = IS_GPU ? CUDA.CUDABackend() : nothing
-    c = ExaModels.ExaCore(; backend, concrete=Val(true))
 
     if ExaModelsPEtab._is_steady_state(PEmodel)
+        c = ExaModels.ExaCore(; backend, concrete=Val(true))
         c, PEinfo = ExaModelsPEtab._create_variables_ss(c, PEmodel, PEprob)
         t_phase1 = time() - t_origin
         c = ExaModelsPEtab._create_constraints_ss(c, PEmodel, PEprob, PEinfo)
         c, y0, sigma0 = ExaModelsPEtab._create_objective_ss(c, PEmodel, PEprob, PEinfo)
     else
-        c, PEinfo = ExaModelsPEtab._create_variables(c, PEmodel, PEprob, K)
+        # The mesh presolve is its own step now, and the core is an ExaModelsCollocation
+        # CollocationExaCore (concrete is always Val(true); passing it errors).
+        t_nodes, sol, t_meas = ExaModelsPEtab._get_mesh_nodes(PEmodel, PEprob)
+        c = ExaModelsPEtab.EMC.CollocationExaCore(t_nodes, K; backend = backend)
+        c, PEinfo = ExaModelsPEtab._create_variables(c, PEmodel, PEprob, sol, t_meas)
         t_phase1 = time() - t_origin
         c = ExaModelsPEtab._create_collocation(c, PEmodel, PEprob, PEinfo)
         c = ExaModelsPEtab._create_continuity(c, PEmodel, PEprob, PEinfo)

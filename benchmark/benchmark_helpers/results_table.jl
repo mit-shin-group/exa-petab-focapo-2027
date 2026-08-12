@@ -200,8 +200,8 @@ println(buf, sep)
 exa_opt(i)    = madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0", "0A")
 exa_subopt(i) = madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0S", "0AS")
 
-println(buf, "\nSUMMARY (ExaModelsPEtab target set: continuous + PEtab-solved)")
-@printf(buf, "  Target models          : %2d       (of %d; %d 'Possible Discontinuities', %d PEtab.jl failed compile)\n",
+println(buf, "\nSUMMARY (ExaModelsPEtab target set: PEtab-solved)")
+@printf(buf, "  Target models          : %2d       (of %d; %d SBML <event>, %d PEtab.jl failed compile)\n",
         length(BENCHMARK_MODELS), length(ALL_MODELS), length(EXCLUDED_MODELS), length(FAILED_MODELS))
 @printf(buf, "  ExaModels solved (GPU) : %2d / %2d  (status 0 + 0A, full/acceptable optimum)\n", count(exa_opt, eachindex(MODELS)), length(MODELS))
 @printf(buf, "  Solved-but-suboptimal  : %2d       (0S / 0AS, converged but ROG ≥ %.2f vs PEtab; excluded above)\n", count(exa_subopt, eachindex(MODELS)), SUBOPT_ROG)

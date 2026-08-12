@@ -5,7 +5,7 @@
 # Each tagged run creates a folder /benchmark_results/benchmark_results_<tag>
 # which contains a snapshot of the options used in _config.toml as well as
 # <model>_results.txt in for each model benchmark_results_<tag>/
-const BENCH_TAG = "focapo"
+const BENCH_TAG = "emc"
 
 # ── WHICH BACKENDS TO INCLUDE IN THE RUN ────────────────────────────────────────────────────
 # Choose which backend(s) to benchmark in this tagged run. 
@@ -56,12 +56,11 @@ const RESULTDIR  = joinpath(@__DIR__, "benchmark_results", "benchmark_results_$(
 const MODELDIR   = joinpath(@__DIR__, "Benchmark-Models-PEtab")
 const ALL_MODELS = sort(filter(m -> isdir(joinpath(MODELDIR, m)), readdir(MODELDIR)))
 
-# Models that contain the problem feature "Possible Discontinuities" are not yet supported by
-# ExaModelsPEtab and thus excluded from the benchmark set.
+# Models carrying an SBML <event> are excluded from the benchmark set: ExaModelsPEtab discretizes
+# fixed-time piecewise(time) gates, not <event> triggers. Liu's trigger is state-dependent
+# (U < 1e-8); Smith's three are fixed-time (time >= t_ins) but still spelled as <event>.
 const EXCLUDED_MODELS = [
-    "Alkan_SciSignal2018", "Beer_MolBioSystems2014", "Brannmark_JBC2010", "Chen_MSB2009",
-    "Fujita_SciSignal2010", "Giordano_Nature2020", "Isensee_JCB2018", "Liu_IFACPapersOnLine2025",
-    "Oliveira_NatCommun2021", "Raimundez_PCB2020", "Smith_BMCSystBiol2013", "Weber_BMC2015",
+    "Liu_IFACPapersOnLine2025", "Smith_BMCSystBiol2013",
 ]
 
 # Models which PEtab.jl fails to compile are excluded from the benchmark set.
