@@ -1,6 +1,6 @@
 # run_examodels.jl — ExaModelsPEtab + MadNLP benchmark (GPU or CPU)
 #
-# Builds petab_examodel and solves it with MadNLP using the LiftedKKT (condensed-space) regime;
+# Builds the examodel_petab model and solves it with MadNLP using the LiftedKKT (condensed-space) regime;
 # only the linear solver differs (GPU: CUDSS, CPU: MadNLP default). Results are written to
 # benchmark_results/{Model}_results.txt under a backend-specific prefix:
 #   BENCH_BACKEND=gpu (default) -> exagpu_*
@@ -26,6 +26,7 @@ end
 include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + RESULTDIR + model sets + BENCH_* config
 
 const K             = BENCH_K
+const SUBDIVIDE     = BENCH_SUBDIVIDE
 const TOL           = BENCH_TOL
 const COMPILE_LIMIT = BENCH_COMPILE_LIMIT
 const SOLVE_LIMIT   = BENCH_SOLVE_LIMIT
@@ -108,11 +109,21 @@ function exa_finished(m)
     return sgm in ("ok", "error", "skipped")
 end
 
-# PEtab's objective at the ExaModels optimum; NaN if the eval fails.
-function petab_obj_at_exa(PEprob, res)
-    Np = PEprob.nparameters_estimate
-    xstar = Array(res.solution)[1:Np]
-    try; return PEprob.nllh(xstar); catch; return NaN; end
+# PEtab's objective at the ExaModels optimum. p is in parameters-table order, so permute into
+# PEtab's xnames order by name. The PEtabODEProblem build is untimed (the exa pipeline does not
+# use PEtab.jl); NaN if the build or eval fails.
+function petab_obj_at_exa(yaml, model, res)
+    try
+        PEprob = with_hard_deadline(COMPILE_LIMIT) do
+            PEtab.PEtabODEProblem(PEtab.PEtabModel(yaml))
+        end
+        pnames = model.petab.pnames
+        theta  = Array(res.solution)[1:length(pnames)]
+        xperm  = [findfirst(==(Symbol(nm)), pnames) for nm in Symbol.(PEprob.xnames)]
+        return PEprob.nllh(theta[xperm])
+    catch
+        return NaN
+    end
 end
 
 # max constraint violation max(lcon - c(x), c(x) - ucon, 0) at x; 0 if unconstrained
@@ -123,34 +134,52 @@ function max_constr_viol(model, x)
     maximum(max.(lc .- c, c .- uc, 0.0))
 end
 
-# ─── build one ExaModel; returns the PEtabODEProblem too ──
+# ─── build one ExaModel ──
+# Mirrors examodel_petab (api.jl at the pinned ExaModelsPEtab commit), split so t_phase1 marks
+# the boundary between setup (tables + spec + mesh + nominal solves + variables) and the
+# ExaModels constraint/objective build.
 function build_model(yaml, t_origin)
-    PEmodel = PEtab.PEtabModel(yaml)
-    PEprob  = PEtab.PEtabODEProblem(PEmodel)
-    backend = IS_GPU ? CUDA.CUDABackend() : nothing
+    backend  = IS_GPU ? CUDA.CUDABackend() : nothing
+    tables   = ExaModelsPEtab.PEtabTables(yaml)
+    modelsys = ExaModelsPEtab._load_model(tables)
+    spec     = ExaModelsPEtab._compile_spec(tables, modelsys)
+    theta0   = ExaModelsPEtab._resolve_theta0(spec, nothing)
 
-    if ExaModelsPEtab._is_steady_state(PEmodel)
-        c = ExaModels.ExaCore(; backend, concrete=Val(true))
-        c, PEinfo = ExaModelsPEtab._create_variables_ss(c, PEmodel, PEprob)
+    if ExaModelsPEtab._is_steady_state(spec)
+        ExaModelsPEtab._has_preequilibration(spec) && error(
+            "unsupported pre-equilibration with steady-state (time=Inf) measurements")
+        zss0      = ExaModelsPEtab._steady_states(spec, modelsys, theta0)
+        u_vals_ss = ExaModelsPEtab._ss_u_vals(spec)
+        c = ExaModels.ExaCore(; backend = backend)
+        c = ExaModelsPEtab._create_variables_ss(c, spec, theta0, zss0)
         t_phase1 = time() - t_origin
-        c = ExaModelsPEtab._create_constraints_ss(c, PEmodel, PEprob, PEinfo)
-        c, y0, sigma0 = ExaModelsPEtab._create_objective_ss(c, PEmodel, PEprob, PEinfo)
+        c = ExaModelsPEtab._create_constraints_ss(c, spec, theta0, u_vals_ss)
+        c, y0, sigma0 = ExaModelsPEtab._create_objective(c, spec, tables,
+                                                         ExaModelsPEtab._ss_ctx(c, spec, zss0))
+        meas_iidx = Int[]
     else
-        # The mesh presolve is its own step now, and the core is an ExaModelsCollocation
-        # CollocationExaCore (concrete is always Val(true); passing it errors).
-        t_nodes, sol, t_meas = ExaModelsPEtab._get_mesh_nodes(PEmodel, PEprob)
-        c = ExaModelsPEtab.EMC.CollocationExaCore(t_nodes, K; backend = backend)
-        c, PEinfo = ExaModelsPEtab._create_variables(c, PEmodel, PEprob, sol, t_meas)
+        mesh = ExaModelsPEtab._build_mesh(spec; subdivide = SUBDIVIDE,
+                                          variant = ExaModelsPEtab._VARIANT)
+        c    = ExaModelsPEtab.EMC.CollocationExaCore(ExaModelsPEtab._core_nodes(mesh, spec.Nc),
+                                                     K; backend = backend)
+        z_init, zss_init = ExaModelsPEtab._solve_conditions(spec, modelsys, theta0, mesh,
+                                                            c.weights.taus)
+        c = ExaModelsPEtab._create_variables(c, spec, mesh, theta0, z_init, zss_init)
         t_phase1 = time() - t_origin
-        c = ExaModelsPEtab._create_collocation(c, PEmodel, PEprob, PEinfo)
-        c = ExaModelsPEtab._create_continuity(c, PEmodel, PEprob, PEinfo)
-        c, y0, sigma0 = ExaModelsPEtab._create_objective(c, PEmodel, PEprob, PEinfo)
+        c = ExaModelsPEtab._create_collocation(c, spec, mesh)
+        c = ExaModelsPEtab._create_continuity(c, spec, mesh)
+        z0arr = reshape(ExaModelsPEtab._var_starts(c, c.z), spec.Nz, spec.Nc, mesh.N, c.K + 1)
+        c, y0, sigma0 = ExaModelsPEtab._create_objective(c, spec, tables,
+                            ExaModelsPEtab._collocation_ctx(c, spec, mesh, z0arr))
+        meas_iidx = copy(mesh.meas_iidx)
     end
+    ExaModelsPEtab._assert_no_flat_p(spec)
+    c = ExaModelsPEtab._attach_petab_meta(c, spec, tables, meas_iidx)
     mdl = ExaModels.ExaModel(c)
     ExaModels.set_start!(mdl, c.y, y0)
     ExaModels.set_start!(mdl, c.sigma, sigma0)
     IS_GPU && CUDA.synchronize()
-    return mdl, PEprob, mdl.meta.nvar, mdl.meta.ncon, t_phase1
+    return mdl, mdl.meta.nvar, mdl.meta.ncon, t_phase1
 end
 
 # ─── SGM warm reruns (timing only) ──────────────────────────────────────────────
@@ -199,10 +228,9 @@ function bench_one(m)
             PFX*"constr_viol"    => "",
         ))
         @info "[$m] compiling on $BACKEND (K=$K, compile_limit=$(COMPILE_LIMIT)s)..."
-        local PEprob
         try
             t0 = time()
-            mdl, PEprob, nvar, ncon, t_phase1 = with_hard_deadline(COMPILE_LIMIT; flag=rp*".$(PFX)compiling") do
+            mdl, nvar, ncon, t_phase1 = with_hard_deadline(COMPILE_LIMIT; flag=rp*".$(PFX)compiling") do
                 build_model(yaml, t0)
             end
             model = mdl
@@ -229,10 +257,11 @@ function bench_one(m)
                 PFX*"solve_time"   => time() - t0,
                 PFX*"term_status"  => string(res.status),
                 PFX*"objective"    => res.objective,
-                PFX*"petab_obj"    => petab_obj_at_exa(PEprob, res),
                 PFX*"iter"         => res.iter,
                 PFX*"constr_viol"  => max_constr_viol(model, res.solution),
             ))
+            # Untimed reference eval, written separately so a kill here cannot lose the solve row
+            write_result(rp, Dict(PFX*"petab_obj" => petab_obj_at_exa(yaml, model, res)))
         catch e
             write_result(rp, Dict(PFX*"solve_status" => "error", PFX*"error" => sprint(showerror, e)))
             @error "[$m] solve failed" exception=(e, catch_backtrace())
@@ -255,7 +284,7 @@ function bench_one(m)
                 @info "[$m] rebuilding for SGM (resume)..."
                 try
                     t0 = time()
-                    model, _, _, _, _ = with_hard_deadline(COMPILE_LIMIT) do; build_model(yaml, t0); end
+                    model, _, _, _ = with_hard_deadline(COMPILE_LIMIT) do; build_model(yaml, t0); end
                     solve_madnlp(model)
                 catch e
                     @error "[$m] SGM rebuild failed" exception=(e, catch_backtrace())
@@ -276,7 +305,7 @@ function warmup()
     @info "warmup: JIT build+solve on $WARMUP_MODEL ($BACKEND) ..."
     try
         t0 = time()
-        mdl, _, _, _, _ = build_model(yaml, t0)
+        mdl, _, _, _ = build_model(yaml, t0)
         IS_GPU && CUDA.synchronize()
         madnlp(mdl; tol=TOL, acceptable_tol=ACCEPT_TOL, acceptable_iter=ACCEPT_ITER, max_iter=MAX_ITER,
                max_wall_time=250.0, linear_solver=LINEAR_SOLVER, KKT_OPTS...)

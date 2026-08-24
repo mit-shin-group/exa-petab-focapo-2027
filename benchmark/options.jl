@@ -26,6 +26,7 @@ const BENCH_WARMUP_MODEL  = "Bruno_JExpBot2016"  # warmup model
 # ── 2. ExaModelsPEtab ────────────────────────────────────────────────────────
 # ExaModelsPEtab options
 const BENCH_K = 4 # number of interpolation points points per mesh interval
+const BENCH_SUBDIVIDE = 4 # equal parts each required mesh interval is split into
 # MadNLP options
 const BENCH_ACCEPT_TOL  = 1e-4             # MadNLP acceptable_tol
 const BENCH_ACCEPT_ITER = 15               # iters at acceptable_tol before accepting
@@ -56,11 +57,16 @@ const RESULTDIR  = joinpath(@__DIR__, "benchmark_results", "benchmark_results_$(
 const MODELDIR   = joinpath(@__DIR__, "Benchmark-Models-PEtab")
 const ALL_MODELS = sort(filter(m -> isdir(joinpath(MODELDIR, m)), readdir(MODELDIR)))
 
-# Models carrying an SBML <event> are excluded from the benchmark set: ExaModelsPEtab discretizes
-# fixed-time piecewise(time) gates, not <event> triggers. Liu's trigger is state-dependent
-# (U < 1e-8); Smith's three are fixed-time (time >= t_ins) but still spelled as <event>.
+# Models ExaModelsPEtab cannot transcribe are excluded from the benchmark set:
+# - SBML <event>: ExaModelsPEtab discretizes fixed-time piecewise(time) gates, not <event>
+#   triggers. Liu's trigger is state-dependent (U < 1e-8); Smith's three are fixed-time
+#   (time >= t_ins) but still spelled as <event>.
+# - Estimated event time: the switch time is a decision variable, so the gate cannot be
+#   resolved at build time. Oliveira estimates t_1/t_2 directly; Beer's condition table maps
+#   tau to estimated tau_* parameters.
 const EXCLUDED_MODELS = [
-    "Liu_IFACPapersOnLine2025", "Smith_BMCSystBiol2013",
+    "Liu_IFACPapersOnLine2025", "Smith_BMCSystBiol2013",   # SBML <event>
+    "Oliveira_NatCommun2021", "Beer_MolBioSystems2014",    # estimated event time
 ]
 
 # Models which PEtab.jl fails to compile are excluded from the benchmark set.
