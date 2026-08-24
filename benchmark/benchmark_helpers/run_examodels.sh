@@ -4,8 +4,9 @@
 # Bruno/Crauste are benchmarked via run_warmup.jl, PEtab via run_petab.sh. Results ->
 # benchmark_results/ (resumable); logs -> benchmark_helpers/logs/.
 #
-# Solver/benchmark config (K, SGM_N, tols, limits) lives in options.jl. The only runtime env
-# knob is BENCH_SUBSET (comma-separated model list; defaults to BENCHMARK_MODELS).
+# Solver/benchmark config (K, SGM_N, tols, limits) lives in options.jl. Runtime env knobs:
+# BENCH_SUBSET (comma-separated model list; defaults to BENCHMARK_MODELS) and BENCH_ESCALATE
+# (see run_examodels.jl).
 #
 # Default is 2 instances strided across both GPUs (0+1). A pre-flight check reports each GPU's
 # free memory (via CUDA.jl) and aborts if a benchmark is already running. Drop to a single GPU
