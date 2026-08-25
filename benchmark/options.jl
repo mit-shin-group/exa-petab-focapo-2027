@@ -58,7 +58,8 @@ const RESULTDIR  = joinpath(@__DIR__, "benchmark_results", "benchmark_results_$(
 const MODELDIR   = joinpath(@__DIR__, "Benchmark-Models-PEtab")
 const ALL_MODELS = sort(filter(m -> isdir(joinpath(MODELDIR, m)), readdir(MODELDIR)))
 
-# Models ExaModelsPEtab cannot transcribe are excluded from the benchmark set:
+# Models ExaModelsPEtab cannot transcribe are excluded from the ExaModels target set
+# (PEtab.jl still attempts them):
 # - SBML <event>: ExaModelsPEtab discretizes fixed-time piecewise(time) gates, not <event>
 #   triggers. Liu's trigger is state-dependent (U < 1e-8); Smith's three are fixed-time
 #   (time >= t_ins) but still spelled as <event>.
@@ -70,12 +71,13 @@ const EXCLUDED_MODELS = [
     "Oliveira_NatCommun2021", "Beer_MolBioSystems2014",    # estimated event time
 ]
 
-# Models which PEtab.jl fails to compile. Kept in the benchmark set exa-only (no events, no
-# estimated trigger times), so their rows carry no PEtab reference.
+# Models PEtab.jl fails to compile. Ordinary ExaModels targets, and the exa reference eval
+# (petab_obj) is skipped for them.
 const FAILED_MODELS = ["Froehlich_CellSystems2018", "Lang_PLOSComputBiol2024", "Raia_CancerResearch2011"]
 
-# The set of benchmarked models.
+# The ExaModels target set. PEtab.jl attempts every model in the collection.
 const BENCHMARK_MODELS = filter(m -> m ∉ EXCLUDED_MODELS, ALL_MODELS)
+const PETAB_MODELS     = ALL_MODELS
 
 # ── METRIC DEFINITIONS ───────────────────────────────────────────────────────────────────
 # Shifted geometric mean (SGM) of solve times [s]

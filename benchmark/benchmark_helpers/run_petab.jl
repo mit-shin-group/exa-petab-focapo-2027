@@ -54,7 +54,7 @@ build_pe(yaml, hess) = hess === nothing ? PEtabODEProblem(PEtabModel(yaml)) :
 
 # All benchmark models minus the warmup model. Used by print_models() / the .sh driver;
 # run_worker() benchmarks whatever model name is passed as ARGS[1].
-const RUN_MODELS = filter(!=(WARMUP_MODEL), BENCHMARK_MODELS)  # 34
+const RUN_MODELS = filter(!=(WARMUP_MODEL), PETAB_MODELS)  # 34
 
 print_models() = foreach(m -> print(m, " "), RUN_MODELS)
 

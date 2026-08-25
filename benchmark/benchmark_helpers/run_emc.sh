@@ -26,8 +26,10 @@ retry() { local n=$1; shift; for a in $(seq 1 "$n"); do "$@" && return 0; echo "
 julia --project=. "$HELP/snapshot_options.jl"
 
 # ── 2. PEtab.jl, per-model optimizer subset (serial, uncontended) ───────────────
-# Original targets with their focapo-fastest optimizer, then the new models (both Fides),
-# small models first. Bruno (warmup model) is benchmarked by run_warmup.jl in stage 5.
+# Original targets with their focapo-fastest optimizer, then every model new to the PEtab
+# benchmark (both Fides), small models first. PEtab.jl attempts all 35, including the models
+# the ExaModels target set excludes. Bruno (warmup model) is benchmarked by run_warmup.jl in
+# stage 5.
 PETAB_JOBS=(
     "Perelson_Science1996 3"
     "Bertozzi_PNAS2020 3"
@@ -56,6 +58,13 @@ PETAB_JOBS=(
     "Raimundez_PCB2020 2 3"
     "Isensee_JCB2018 2 3"
     "Chen_MSB2009 2 3"
+    "Oliveira_NatCommun2021 2 3"
+    "Beer_MolBioSystems2014 2 3"
+    "Smith_BMCSystBiol2013 2 3"
+    "Liu_IFACPapersOnLine2025 2 3"
+    "Raia_CancerResearch2011 2 3"
+    "Lang_PLOSComputBiol2024 2 3"
+    "Froehlich_CellSystems2018 2 3"
 )
 echo "[1/6] PEtab.jl (per-model optimizer subset) ..."
 for job in "${PETAB_JOBS[@]}"; do

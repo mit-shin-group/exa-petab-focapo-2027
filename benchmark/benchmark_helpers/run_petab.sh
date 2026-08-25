@@ -15,7 +15,7 @@ mkdir -p "$RD" "$LD"
 PAR=${1:-1}
 
 # Benchmarked models minus the warmup, plus the thread count and optimizer count, from options.jl.
-mapfile -t MODELS < <(julia --project=. -e 'include("options.jl"); foreach(println, filter(!=(BENCH_WARMUP_MODEL), BENCHMARK_MODELS))')
+mapfile -t MODELS < <(julia --project=. -e 'include("options.jl"); foreach(println, filter(!=(BENCH_WARMUP_MODEL), PETAB_MODELS))')
 # NOPT from BENCH_PETAB_HESSIANS (equal-length to the optimizers by contract) — a plain const, so this
 # avoids instantiating BENCH_PETAB_OPTIMIZERS() which would force a slow Optim/Fides load here.
 read -r THREADS NOPT < <(julia --project=. -e 'include("options.jl"); h = BENCH_PETAB_HESSIANS; print(BENCH_CPU_THREADS, " ", h isa AbstractVector ? length(h) : 1)')

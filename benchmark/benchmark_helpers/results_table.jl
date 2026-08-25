@@ -197,17 +197,18 @@ end
 println(buf, sep)
 
 # ─── summary (GPU is the primary ExaModels backend) ─────────────────────────────
-exa_opt(i)    = madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0", "0A")
+exa_solved(i) = madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0", "0A", "0S", "0AS")
 exa_subopt(i) = madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0S", "0AS")
+nsolved = count(exa_solved, eachindex(MODELS))
 
-println(buf, "\nSUMMARY (ExaModelsPEtab target set: PEtab-solved)")
-@printf(buf, "  Target models          : %2d       (of %d; %d unsupported events excluded, %d PEtab.jl compile failures kept exa-only)\n",
-        length(BENCHMARK_MODELS), length(ALL_MODELS), length(EXCLUDED_MODELS), length(FAILED_MODELS))
-@printf(buf, "  ExaModels solved (GPU) : %2d / %2d  (status 0 + 0A, full/acceptable optimum)\n", count(exa_opt, eachindex(MODELS)), length(MODELS))
-@printf(buf, "  Solved-but-suboptimal  : %2d       (0S / 0AS, converged but ROG ≥ %.2f vs PEtab; excluded above)\n", count(exa_subopt, eachindex(MODELS)), SUBOPT_ROG)
+println(buf, "\nSUMMARY")
+@printf(buf, "  Target models          : %2d / %d  (%d unsupported events excluded)\n",
+        length(BENCHMARK_MODELS), length(ALL_MODELS), length(EXCLUDED_MODELS))
+@printf(buf, "  ExaModels solved (GPU) : %2d / %2d  (solve status 0 / 0A / 0S / 0AS)\n", nsolved, length(MODELS))
+@printf(buf, "  Solved-but-suboptimal  : %2d / %2d  (converged but ROG ≥ %.2f vs PEtab 0S / 0AS )\n",
+        count(exa_subopt, eachindex(MODELS)), nsolved, SUBOPT_ROG)
 
-println(buf, "")
-println(buf, "  Source dir: benchmark_results_$(BENCH_TAG)/  (GPU=exagpu_*, CPU=exacpu_*, PEtab=petab_<opt>_*, fastest optimizer shown)")
+println(buf, "\nKEY")
 println(buf, "  CMPL(s) := Model compilation time")
 println(buf, "  EXA(%)  := Fraction of model compile time spent on actual ExaModels build (PEtab setup + mesh generation)")
 println(buf, "  SOL(s)  := Solver solve time, shifted geometric mean (by δ = $(SGM_SHIFT)s) over n=$SGM_N reruns")
