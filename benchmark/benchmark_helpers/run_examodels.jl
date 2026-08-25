@@ -8,9 +8,9 @@
 #
 # Each solve also stores <prefix>petab_obj := PEtab's objective at the ExaModels optimum.
 #
-# BENCH_ESCALATE=1 doubles subdivide and rebuilds whenever a solve terminates infeasible, up to
-# BENCH_SD_CAP. The final level lands in <prefix>subdivide, the failed levels' cumulative cost
-# in <prefix>escalate_time.
+# BENCH_ESCALATE=1 doubles subdivide and rebuilds whenever a solve terminates infeasible or
+# restoration-failed, up to BENCH_SD_CAP. The final level lands in <prefix>subdivide, the failed
+# levels' cumulative cost in <prefix>escalate_time.
 #
 # Compile timing splits into Phase 1 (PEtab setup + ODE presolve) and Phase 2 (ExaModels build);
 # after a converged first solve, N_SGM_RERUNS warm reruns give the SGM solve time. Resumable.
@@ -46,7 +46,8 @@ const WARMUP_MODEL  = BENCH_WARMUP_MODEL
 const BACKEND = lowercase(get(ENV, "BENCH_BACKEND", "gpu"))
 const IS_GPU  = BACKEND != "cpu"
 const PFX     = IS_GPU ? "exagpu_" : "exacpu_"
-# Mesh escalation: on an infeasible solve, double subdivide and rebuild, up to SD_CAP
+# Mesh escalation: on an infeasible or restoration-failed solve, double subdivide and rebuild,
+# up to SD_CAP
 const ESCALATE = get(ENV, "BENCH_ESCALATE", "0") == "1"
 
 # LiftedKKT (condensed-space) MadNLP regime; passed through from options.jl.
@@ -279,7 +280,9 @@ function bench_one(m)
                 return
             end
 
-            if ESCALATE && occursin("INFEASIBLE", uppercase(string(res.status))) && 2 * sd <= SD_CAP
+            term_up = uppercase(string(res.status))
+            if ESCALATE && (occursin("INFEASIBLE", term_up) || occursin("RESTORATION", term_up)) &&
+               2 * sd <= SD_CAP
                 # Cumulative cost of the failed levels; the final level keeps the headline keys
                 write_result(rp, Dict(PFX*"escalate_time" => time() - t_esc0))
                 @info "[$m] infeasible at subdivide=$sd; doubling to $(2 * sd)"

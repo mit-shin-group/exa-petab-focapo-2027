@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# run_emc_escalate.sh: rerun the exa-infeasible models with mesh escalation (BENCH_ESCALATE=1).
+# run_emc_escalate.sh: rerun the exa infeasible or restoration-failed models with mesh
+# escalation (BENCH_ESCALATE=1).
 #
-# For each backend, models whose <prefix>term_status is INFEASIBLE_PROBLEM_DETECTED are reset
+# For each backend, models whose <prefix>term_status is INFEASIBLE_PROBLEM_DETECTED or
+# RESTORATION_FAILED are reset
 # (that prefix only, the prior file kept as <model>_results.txt.pre_escalate) and rerun with the
 # subdivide-doubling loop in run_examodels.jl (cap BENCH_SD_CAP). The report regenerates at the
 # end. Intended to run after run_emc.sh completes.
@@ -21,7 +23,7 @@ retry() { local n=$1; shift; for a in $(seq 1 "$n"); do "$@" && return 0; echo "
 affected() {  # $1 = prefix (exagpu|exacpu): reset that prefix for infeasible models, list them
     local pfx=$1 out=() f m
     for f in "$RD"/*_results.txt; do
-        grep -q "^${pfx}_term_status=INFEASIBLE_PROBLEM_DETECTED" "$f" || continue
+        grep -qE "^${pfx}_term_status=(INFEASIBLE_PROBLEM_DETECTED|RESTORATION_FAILED)" "$f" || continue
         m=$(basename "$f" _results.txt)
         cp -n "$f" "$f.pre_escalate"
         sed -i "/^${pfx}_/d" "$f"

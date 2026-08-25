@@ -27,7 +27,7 @@ const BENCH_WARMUP_MODEL  = "Bruno_JExpBot2016"  # warmup model
 # ExaModelsPEtab options
 const BENCH_K = 4 # number of interpolation points points per mesh interval
 const BENCH_SUBDIVIDE = 4 # equal parts each required mesh interval is split into
-const BENCH_SD_CAP    = 64 # mesh escalation cap: BENCH_ESCALATE=1 doubles subdivide up to this on infeasible solves
+const BENCH_SD_CAP    = 64 # mesh escalation cap: BENCH_ESCALATE=1 doubles subdivide up to this on infeasible or restoration-failed solves
 # MadNLP options
 const BENCH_ACCEPT_TOL  = 1e-4             # MadNLP acceptable_tol
 const BENCH_ACCEPT_ITER = 15               # iters at acceptable_tol before accepting
