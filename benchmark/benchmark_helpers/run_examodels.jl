@@ -289,8 +289,10 @@ function bench_one(m)
             end
             break
         end
-        # Untimed reference eval, written separately so a kill here cannot lose the solve row
-        write_result(rp, Dict(PFX*"petab_obj" => petab_obj_at_exa(yaml, model, res)))
+        # Untimed reference eval, written separately so a kill here cannot lose the solve row.
+        # FAILED_MODELS have no PEtab.jl build, so skip the doomed attempt.
+        write_result(rp, Dict(PFX*"petab_obj" =>
+            (m in FAILED_MODELS ? NaN : petab_obj_at_exa(yaml, model, res))))
     end
 
     # ── SGM SOLVE RERUNS (only after a converged first solve) ──────────────────

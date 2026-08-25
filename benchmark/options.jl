@@ -70,11 +70,12 @@ const EXCLUDED_MODELS = [
     "Oliveira_NatCommun2021", "Beer_MolBioSystems2014",    # estimated event time
 ]
 
-# Models which PEtab.jl fails to compile are excluded from the benchmark set.
+# Models which PEtab.jl fails to compile. Kept in the benchmark set exa-only (no events, no
+# estimated trigger times), so their rows carry no PEtab reference.
 const FAILED_MODELS = ["Froehlich_CellSystems2018", "Lang_PLOSComputBiol2024", "Raia_CancerResearch2011"]
 
 # The set of benchmarked models.
-const BENCHMARK_MODELS = filter(m -> m ∉ EXCLUDED_MODELS && m ∉ FAILED_MODELS, ALL_MODELS)
+const BENCHMARK_MODELS = filter(m -> m ∉ EXCLUDED_MODELS, ALL_MODELS)
 
 # ── METRIC DEFINITIONS ───────────────────────────────────────────────────────────────────
 # Shifted geometric mean (SGM) of solve times [s]
