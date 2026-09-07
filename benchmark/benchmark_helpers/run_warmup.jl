@@ -136,8 +136,14 @@ function build_model(yaml, t_origin)
                                                          ExaModelsPEtab._ss_ctx(c, spec, zss0))
         meas_iidx = Int[]
     else
-        mesh = ExaModelsPEtab._build_mesh(spec; subdivide = SUBDIVIDE,
-                                          variant = ExaModelsPEtab._VARIANT)
+        # Mesh placement follows the package's model-size default (:integrator or :uniform)
+        mi = ExaModelsPEtab._default_mesh_init(spec)
+        mesh = mi === :uniform ?
+            ExaModelsPEtab._build_mesh(spec; subdivide = SUBDIVIDE,
+                                       variant = ExaModelsPEtab._VARIANT) :
+            ExaModelsPEtab._init_mesh(spec, modelsys, theta0, K; subdivide = SUBDIVIDE,
+                                      variant = ExaModelsPEtab._VARIANT,
+                                      ExaModelsPEtab._meshinit_defaults(spec)...)
         c    = ExaModelsPEtab.EMC.CollocationExaCore(ExaModelsPEtab._core_nodes(mesh, spec.Nc),
                                                      K; backend = backend)
         z_init, zss_init = ExaModelsPEtab._solve_conditions(spec, modelsys, theta0, mesh,

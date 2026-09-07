@@ -2,53 +2,69 @@
                |        ExaModels + MadNLP (GPU)        |        ExaModels + MadNLP (CPU)        |  PEtab.jl + Best Optimizer 
 Model          | CMPL(s) EXA(%)   SOL(s)  STAT   ROG(-) | CMPL(s) EXA(%)   SOL(s)  STAT   ROG(-) | CMPL(s)   SOL(s)  STAT  TAG
 ------------------------------------------------------------------------------------------------------------------------------
-Armistead      |    76.5    58%    0.470     0  +5.1e-3 |  125.28    57%    0.463     0  +2.3e-6 |   52.26    0.132    0F   GN
-Bachmann       | 1182.84    93% 3601.898     T  +7.7e-1 |  1119.9    92% 3626.267     T  +5.6e-1 |  133.71   23.336    0F   GN
-Bertozzi       |   72.66    55%    0.199    0S  +1.9e+0 |  118.29    54%    0.278    0S  +1.9e+0 |    0.38    0.189    0F BFGS
-Blasi          |  106.52    67%    0.279     0  +2.0e-7 |  158.31    64%    0.013     0  -3.0e-7 |    0.35    0.692    0F BFGS
-Boehm          |   86.95    64%    0.329     0  -1.4e-7 |  127.51    61%    0.548     0  -1.6e-7 |  355.28    0.009     0  IPN
-Borghans       |  120.96    60%        -     R  +8.8e-1 |  120.78    59%        -     E        - |   18.63   89.965    0F BFGS
-Bruno          |   76.61    59%    0.221     0  +1.6e-8 |   76.99    57%    0.418     0 +7.0e-11 |   34.33    0.487    0F   GN
-Crauste        |   63.07    57%    0.199     0  +1.2e-3 |  108.32    57%    0.445     0  +8.1e-6 |   49.33    0.434    0F   GN
-Elowitz        |  124.41    61%        -     R  +8.9e-1 |  120.84    59%        -     I  +1.0e-4 |   53.75   18.587    0F   GN
-Fiedler        |  3320.9    97%        -     E        - | 3430.81    97%        -     T        - |  481.06    0.014     0  IPN
-Laske          |  703.48    88%   21.348    0S  +6.5e-2 | 1039.86    87%  182.912    0S  +6.4e-2 |   59.23   24.660    0F   GN
-Lucarelli      |  1013.3    86% 3603.611     T  +2.7e-2 |  939.84    85% 3703.467     T  +4.9e-4 |  284.16  221.146    0F BFGS
-Okuonghae      |   87.31    64%    4.724    0S  +5.2e-2 |   142.4    62%    5.606   0AS  +1.6e-1 |    0.46   10.856    0F BFGS
-Perelson       |   64.43    56%    0.433     0  +4.7e-3 |  105.51    55%    0.055    0S  +9.4e-1 |    0.14    0.135    0F BFGS
-Rahman         |  107.66    72%    0.215     0  +2.1e-7 |  171.39    70%    0.364     0  +1.9e-7 |   48.08    0.233    0F   GN
-SalazarCavazos |  759.99    85%   39.833     0  +8.9e-4 | 1073.75    87%  481.771     0  +8.9e-4 |  257.35  215.807    0F   GN
-Schwen         |  111.13    71%   29.873    0A  +3.9e-6 |  174.75    68%  115.227    0A  +2.8e-7 |   47.48    6.529    0F BFGS
-Sneyd          |  118.28    86%    2.765     0  +3.4e-5 |  197.43    85%  193.974    0A  +1.2e-6 |    4.67    5.744    0F BFGS
-Zhao           |  241.39    81%   50.082   0AS  +8.0e-2 |  389.42    80%  185.255   0AS  +1.8e-1 |    0.19   15.046    0F BFGS
-Zheng          |  320.27    82%   13.679     0  +2.9e-3 |  492.59    80%   54.917    0A  +1.0e-5 |    0.66    2.700    0F BFGS
+Alkan          |       -      -        -     -        - |       -      -        -     -        - |       E        -     -    -
+Armistead      |   17.93    90%        -     T        - |       -      -        -     -        - |    67.6    0.124    0F   GN
+Bachmann       |       -      -        -     -        - |       -      -        -     -        - |   77.87    9.706    0F   GN
+Beer           |       -      -        -     -        - |       -      -        -     -        - |  138.93  261.451    0F   GN
+Bertozzi       |   13.19    76%    0.130    0S  +1.9e+0 |       -      -        -     -        - |  122.64    0.134    0F BFGS
+Blasi          |   24.31    78%    0.364     0  +1.8e-7 |       -      -        -     -        - |   77.28    0.334    0F BFGS
+Boehm          |   40.42    93%    0.233     0  -1.3e-7 |       -      -        -     -        - | 1137.04    0.006     0  IPN
+Borghans       |       -      -        -     -        - |       -      -        -     -        - |  244.76   31.644    0F BFGS
+Brannmark      |       -      -        -     -        - |       -      -        -     -        - |   73.68    2.005    0F   GN
+Bruno          |   29.62    89%    0.165     0  +6.6e-9 |   28.53    87%    0.284     0 -1.7e-10 |    0.37    0.668    0F BFGS
+Chen           |       -      -        -     -        - |       -      -        -     -        - |       T        -     -    -
+Crauste        |       -      -        -     -        - |       -      -        -     -        - |   67.15    0.224    0F   GN
+Elowitz        |       -      -        -     -        - |       -      -        -     -        - |   70.12    8.902    0F   GN
+Fiedler        |       -      -        -     -        - |       -      -        -     -        - |  114.86    0.728    0F   GN
+Froehlich      |       -      -        -     -        - |       -      -        -     -        - |       T        -     -    -
+Fujita         |       -      -        -     -        - |       -      -        -     -        - |   75.12  453.548    0F   GN
+Giordano       |       -      -        -     -        - |       -      -        -     -        - |  142.55    5.883    0F BFGS
+Isensee        |       -      -        -     -        - |       -      -        -     -        - |  161.15 1062.954    0F   GN
+Lang           |       -      -        -     -        - |       -      -        -     -        - | 2195.09        E     -    -
+Laske          |       -      -        -     -        - |       -      -        -     -        - |   113.4    7.438    0F   GN
+Liu            |       -      -        -     -        - |       -      -        -     -        - |  205.62    0.166    0F BFGS
+Lucarelli      |       -      -        -     -        - |       -      -        -     -        - |  161.52   57.039    0F BFGS
+Okuonghae      |   31.05    96%   10.585    0S  +1.9e-1 |       -      -        -     -        - |  147.06   27.135    0F BFGS
+Oliveira       |       -      -        -     -        - |       -      -        -     -        - |   87.93    5.847    0F   GN
+Perelson       |   12.42    90%    1.618     0  +1.1e-5 |       -      -        -     -        - |  102.73    0.079    0F BFGS
+Rahman         |   37.51    96%    0.176     0  +1.8e-7 |       -      -        -     -        - |   66.46    0.099    0F   GN
+Raia           |       -      -        -     -        - |       -      -        -     -        - |       E        -     -    -
+Raimundez      |       -      -        -     -        - |       -      -        -     -        - |   134.9  297.706    0F   GN
+SalazarCavazos |       -      -        -     -        - |       -      -        -     -        - |  384.02   49.093    0F   GN
+Schwen         |   55.96    93%   24.975    0A  +1.8e-5 |       -      -        -     -        - |  181.88    2.314    0F BFGS
+Smith          |       -      -        -     -        - |       -      -        -     -        - |  719.62 3616.892     T   GN
+Sneyd          |   36.72    97%    1.896     0  +6.8e-6 |       -      -        -     -        - |  163.38    2.981    0F BFGS
+Weber          |       -      -        -     -        - |       -      -        -     -        - |   100.8        E     -    -
+Zhao           |   46.19    97%   31.514   0AS  +6.8e-2 |       -      -        -     -        - |   72.29   10.686    0F BFGS
+Zheng          |  118.01    98%        -    DV  +1.6e+1 |       -      -        -     -        - |  100.11    1.376    0F BFGS
 ------------------------------------------------------------------------------------------------------------------------------
 
-SUMMARY (ExaModelsPEtab target set: continuous + PEtab-solved)
-  Target models          : 20       (of 35; 12 'Possible Discontinuities', 3 PEtab.jl failed compile)
-  ExaModels solved (GPU) : 11 / 20  (status 0 + 0A, full/acceptable optimum)
-  Solved-but-suboptimal  :  4       (0S / 0AS, converged but ROG ≥ 0.02 vs PEtab; excluded above)
+SUMMARY
+  Target models          : 31 / 35  (4 unsupported events excluded)
+  ExaModels solved (GPU) : 10 / 31  (solve status 0 / 0A / 0S / 0AS)
+  Solved-but-suboptimal  :  3 / 10  (converged but ROG ≥ 0.02 vs PEtab 0S / 0AS )
 
-  Source dir: benchmark_results_focapo/  (GPU=exagpu_*, CPU=exacpu_*, PEtab=petab_<opt>_*, fastest optimizer shown)
-  CMPL(s) := Model compilation time
+TABLE KEY
+  CMPL(s) := Model compilation time (T = compile timed out, E = compile errored)
   EXA(%)  := Fraction of model compile time spent on actual ExaModels build (PEtab setup + mesh generation)
-  SOL(s)  := Solver solve time, shifted geometric mean (by δ = 0.01s) over n=5 reruns
+  SOL(s)  := Solver solve time, shifted geometric mean (by δ = 0.01s) over n=5 reruns (E = solve errored, T = a rerun hit walltime)
   STAT    := Solver status
   ROG(-)  := relative objective gap = (petab.nllh(exa_p*) - petab_obj) / |petab_obj|  (negative => ExaModels lower)
   TAG     := Fastest PEtab optimizer for the model (IPN=Optim.IPNewton, GN=Fides.CustomHessian/GaussNewton, BFGS=Fides.BFGS)
 
-  MadNLP (Status)
+  MadNLP STATUS KEY
      0 : SOLVE_SUCCEEDED
     0A : SOLVED_TO_ACCEPTABLE_LEVEL
     0S : SOLVE_SUCCEEDED, suboptimal (ROG ≥ 0.02 vs PEtab)
    0AS : SOLVED_TO_ACCEPTABLE_LEVEL, suboptimal (ROG ≥ 0.02 vs PEtab)
      T : WALLTIME_EXCEEDED (timeout)
-     R : RESTORATION_FAILED
-     I : INFEASIBLE_PROBLEM_DETECTED
-     E : Error
+    DV : DIVERGING_ITERATES
+     - : compile or solve failed, or not run
 
-  PEtab  (Status)
+  PEtab STATUS KEY
      0 : Converged by gradient, ‖g‖∞ ≤ tol
     0F : Converged by objective (F), |Δf| ≤ ftol·|f| (with ‖g‖ > tol)
+     T : Walltime exceeded (timeout)
+     - : compile or solve failed, or not run
 
 ==============================================================================================================================

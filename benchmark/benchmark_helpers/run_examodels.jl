@@ -114,7 +114,7 @@ function exa_finished(m)
     cs != "ok" && return false
     ss in ("timeout", "error") && return true
     ss != "ok" && return false
-    return sgm in ("ok", "error", "skipped")
+    return sgm in ("ok", "error", "skipped", "timeout")
 end
 
 # PEtab's objective at the ExaModels optimum. p is in parameters-table order, so permute into
@@ -166,8 +166,14 @@ function build_model(yaml, t_origin; subdivide = SUBDIVIDE)
                                                          ExaModelsPEtab._ss_ctx(c, spec, zss0))
         meas_iidx = Int[]
     else
-        mesh = ExaModelsPEtab._build_mesh(spec; subdivide = subdivide,
-                                          variant = ExaModelsPEtab._VARIANT)
+        # Mesh placement follows the package's model-size default (:integrator or :uniform)
+        mi = ExaModelsPEtab._default_mesh_init(spec)
+        mesh = mi === :uniform ?
+            ExaModelsPEtab._build_mesh(spec; subdivide = subdivide,
+                                       variant = ExaModelsPEtab._VARIANT) :
+            ExaModelsPEtab._init_mesh(spec, modelsys, theta0, K; subdivide = subdivide,
+                                      variant = ExaModelsPEtab._VARIANT,
+                                      ExaModelsPEtab._meshinit_defaults(spec)...)
         c    = ExaModelsPEtab.EMC.CollocationExaCore(ExaModelsPEtab._core_nodes(mesh, spec.Nc),
                                                      K; backend = backend)
         z_init, zss_init = ExaModelsPEtab._solve_conditions(spec, modelsys, theta0, mesh,
@@ -198,12 +204,23 @@ function run_sgm_reruns(m, rp, model)
         @info "[$m] SGM solve $i/$N_SGM_RERUNS ..."
         try
             IS_GPU && GC.gc()     # clear dead GPU allocs OUTSIDE timing; stops a GC/allocator stall landing in a timed solve (keeps pool+kernels warm; no reclaim)
-            t0 = time()
-            solve_madnlp(model)   # warm rerun, timed bare
-            push!(solve_times, time() - t0)
+            t = with_hard_deadline(SOLVE_LIMIT + 300.0; flag=rp*".$(PFX)sgm") do
+                t0 = time()
+                solve_madnlp(model)   # warm rerun, timed bare
+                time() - t0
+            end
+            push!(solve_times, t)
         catch e
             @error "[$m] SGM solve $i failed" exception=(e, catch_backtrace())
             write_result(rp, Dict(PFX*"sgm_status" => "error", PFX*"sgm_error" => sprint(showerror, e)))
+            return
+        end
+        # A rerun that reaches max_wall_time poisons the SGM: record and move on
+        if solve_times[end] >= 0.99 * SOLVE_LIMIT
+            write_result(rp, Dict(PFX*"sgm_status" => "timeout",
+                PFX*"solve_times" => join(solve_times, ","),
+                PFX*"sgm_error" => "rerun $i reached max_wall_time; SGM stopped"))
+            @info "[$m] SGM rerun $i reached walltime; stopping"
             return
         end
     end
@@ -264,7 +281,7 @@ function bench_one(m)
             write_result(rp, Dict(PFX*"solve_status" => "solving"))
             try
                 t0 = time()
-                res = with_hard_deadline(SOLVE_LIMIT + 3600.0; flag=rp*".$(PFX)solving") do; solve_madnlp(model); end
+                res = with_hard_deadline(SOLVE_LIMIT + 300.0; flag=rp*".$(PFX)solving") do; solve_madnlp(model); end
                 write_result(rp, Dict(
                     PFX*"solve_status" => "ok",
                     PFX*"solve_time"   => time() - t0,
@@ -357,8 +374,8 @@ function main()
 
     # Resolve in-progress sentinels left by a killed run (this backend only). A genuine watchdog
     # timeout left a .compiling/.solving flag → record terminal timeout. No flag ⇒ the kill was
-    # external (e.g. reboot) → clear the sentinel so the model re-runs. SGM has no watchdog, so a
-    # leftover 'running' is always an external kill → re-run.
+    # external (e.g. reboot) → clear the sentinel so the model re-runs. SGM follows the same rule
+    # via its .sgm flag.
     for m in RUN_MODELS
         rp = result_path(m); d = read_result(rp)
         cflag = rp*".$(PFX)compiling"; sflag = rp*".$(PFX)solving"
@@ -373,7 +390,12 @@ function main()
                 write_result(rp, Dict(PFX*"solve_status" => ""))
             rm(sflag; force=true)
         elseif get(d, PFX*"sgm_status", "") == "running"
-            write_result(rp, Dict(PFX*"sgm_status" => "interrupted"))
+            gflag = rp*".$(PFX)sgm"
+            isfile(gflag) ?
+                write_result(rp, Dict(PFX*"sgm_status" => "timeout",
+                                      PFX*"sgm_error" => "SGM rerun hit the hard deadline")) :
+                write_result(rp, Dict(PFX*"sgm_status" => "interrupted"))
+            rm(gflag; force=true)
         end
     end
 

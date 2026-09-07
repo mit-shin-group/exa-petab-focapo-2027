@@ -1,0 +1,36 @@
+petab_BFGS_compile_status=ok
+petab_BFGS_compile_time=100.79848098754883
+petab_BFGS_error=KeyError: key :model1_data1model1_data2 not found
+petab_BFGS_fconverged=
+petab_BFGS_gconverged=
+petab_BFGS_gresidual=
+petab_BFGS_has_events=true
+petab_BFGS_iter=
+petab_BFGS_objective=
+petab_BFGS_optimum_found=
+petab_BFGS_retcode=
+petab_BFGS_sgm_error=first solve optimum_found=≠true; SGM skipped
+petab_BFGS_sgm_solve_time=
+petab_BFGS_sgm_status=skipped
+petab_BFGS_solve_status=error
+petab_BFGS_solve_time=
+petab_BFGS_solve_times=
+petab_BFGS_xconverged=
+petab_GaussNewton_compile_status=ok
+petab_GaussNewton_compile_time=93.30228114128113
+petab_GaussNewton_error=KeyError: key :model1_data1model1_data2 not found
+petab_GaussNewton_fconverged=
+petab_GaussNewton_gconverged=
+petab_GaussNewton_gresidual=
+petab_GaussNewton_has_events=true
+petab_GaussNewton_iter=
+petab_GaussNewton_objective=
+petab_GaussNewton_optimum_found=
+petab_GaussNewton_retcode=
+petab_GaussNewton_sgm_error=first solve optimum_found=≠true; SGM skipped
+petab_GaussNewton_sgm_solve_time=
+petab_GaussNewton_sgm_status=skipped
+petab_GaussNewton_solve_status=error
+petab_GaussNewton_solve_time=
+petab_GaussNewton_solve_times=
+petab_GaussNewton_xconverged=

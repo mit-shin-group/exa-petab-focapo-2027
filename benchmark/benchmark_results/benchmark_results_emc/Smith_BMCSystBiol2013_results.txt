@@ -1,0 +1,36 @@
+petab_BFGS_compile_status=ok
+petab_BFGS_compile_time=730.8518970012665
+petab_BFGS_error=
+petab_BFGS_fconverged=false
+petab_BFGS_gconverged=false
+petab_BFGS_gresidual=
+petab_BFGS_has_events=true
+petab_BFGS_iter=125
+petab_BFGS_objective=31097.79991396765
+petab_BFGS_optimum_found=false
+petab_BFGS_retcode=MAXTIME
+petab_BFGS_sgm_error=first solve optimum_found=false≠true; SGM skipped
+petab_BFGS_sgm_solve_time=
+petab_BFGS_sgm_status=skipped
+petab_BFGS_solve_status=ok
+petab_BFGS_solve_time=3617.5266358852386
+petab_BFGS_solve_times=
+petab_BFGS_xconverged=false
+petab_GaussNewton_compile_status=ok
+petab_GaussNewton_compile_time=719.6226539611816
+petab_GaussNewton_error=
+petab_GaussNewton_fconverged=false
+petab_GaussNewton_gconverged=false
+petab_GaussNewton_gresidual=
+petab_GaussNewton_has_events=true
+petab_GaussNewton_iter=53
+petab_GaussNewton_objective=26875.086900647064
+petab_GaussNewton_optimum_found=false
+petab_GaussNewton_retcode=MAXTIME
+petab_GaussNewton_sgm_error=first solve optimum_found=false≠true; SGM skipped
+petab_GaussNewton_sgm_solve_time=
+petab_GaussNewton_sgm_status=skipped
+petab_GaussNewton_solve_status=ok
+petab_GaussNewton_solve_time=3616.8923511505127
+petab_GaussNewton_solve_times=
+petab_GaussNewton_xconverged=false

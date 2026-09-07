@@ -1,0 +1,17 @@
+petab_BFGS_compile_status=ok
+petab_BFGS_compile_time=244.764554977417
+petab_BFGS_error=
+petab_BFGS_fconverged=true
+petab_BFGS_gconverged=false
+petab_BFGS_gresidual=
+petab_BFGS_has_events=false
+petab_BFGS_iter=272
+petab_BFGS_objective=-108.2872511865672
+petab_BFGS_optimum_found=true
+petab_BFGS_retcode=FTOL
+petab_BFGS_sgm_solve_time=31.643975253806616
+petab_BFGS_sgm_status=ok
+petab_BFGS_solve_status=ok
+petab_BFGS_solve_time=55.55922889709473
+petab_BFGS_solve_times=35.20115303993225,35.81016302108765,32.4223210811615,27.75366497039795,27.971994161605835
+petab_BFGS_xconverged=false

@@ -13,7 +13,8 @@ const USE_SGM    = !("--cold" in ARGS)
 
 include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + RESULTDIR + model sets + BENCH_* + t_sgmdelta
 
-const MODELS    = BENCHMARK_MODELS  # benchmarked set (already sorted)
+const MODELS      = PETAB_MODELS         # table rows: every model (already sorted)
+const EXA_TARGETS = Set(BENCHMARK_MODELS)
 const SGM_N     = BENCH_SGM_N
 const SGM_SHIFT = BENCH_SGM_SHIFT
 
@@ -69,14 +70,10 @@ gap_str(d, pfx, po) = (gp = gap_val(d, pfx, po); gp === nothing ? "-" :
 
 # MadNLP status code for backend pfx (exagpu_/exacpu_); po is the PEtab reference objective for ROG.
 function madnlp_code(d, pfx, po)
-    cs = g(d, pfx * "compile_status")
-    cs == "timeout" && return "T"   # build exceeded COMPILE_LIMIT
-    cs == "error"   && return "E"   # build failed
-    cs != "ok"      && return "-"   # missing_yaml / skipped / not run
+    g(d, pfx * "compile_status") != "ok" && return "-"   # never reached the solver
     ss = g(d, pfx * "solve_status")
-    ss == "skipped" && return "-"
+    ss in ("skipped", "error") && return "-"   # error shows in SOL(s)
     ss == "timeout" && return "T"
-    ss == "error" && return "E"
     term = uppercase(g(d, pfx * "term_status"))
     isempty(term) && return "-"
     if occursin("SUCCEEDED", term) || occursin("ACCEPTABLE", term)
@@ -88,18 +85,16 @@ function madnlp_code(d, pfx, po)
     occursin("RESTORATION",      term) && return "R"
     occursin("SEARCH_DIRECTION", term) && return "D"
     occursin("INFEASIBLE",       term) && return "I"
-    return "5"
+    occursin("DIVERGING",        term) && return "DV"
+    return "?"
 end
 
 # PEtab status code for optimizer prefix pfx.
 function petab_code(d, pfx)
-    cs = g(d, pfx * "compile_status")
-    cs == "timeout" && return "T"   # build exceeded COMPILE_LIMIT
-    cs == "error"   && return "E"   # build failed
-    cs != "ok"      && return "-"   # missing_yaml / skipped / not run
+    g(d, pfx * "compile_status") != "ok" && return "-"   # never reached the solver
     ss = g(d, pfx * "solve_status")
     ss == "timeout" && return "T"
-    ss == "error" && return "E"
+    ss == "error"   && return "-"   # error shows in SOL(s)
     if g(d, pfx * "optimum_found") == "true"
         # which convergence criterion fired; precedence: gradient → F objective → X step
         g(d, pfx * "gconverged") == "true" && return "0"
@@ -119,8 +114,23 @@ pct_exa_str(d, pfx) = begin
     ct = fparse(g(d, pfx * "compile_time")); pt = fparse(g(d, pfx * "presolve_time"))
     (ct === nothing || pt === nothing || ct <= 0.0) ? "-" : @sprintf("%4.0f%%", 100.0 * (ct - pt) / ct)
 end
-fmt_cmp(d, pfx) = (g(d, pfx * "compile_status") == "ok" && !isempty(g(d, pfx * "compile_time"))) ? g(d, pfx * "compile_time") : "-"
+fmt_cmp(d, pfx) = begin
+    cs = g(d, pfx * "compile_status")
+    cs == "timeout" && return "T"
+    cs == "error"   && return "E"
+    (cs == "ok" && !isempty(g(d, pfx * "compile_time"))) ? g(d, pfx * "compile_time") : "-"
+end
+# PEtab CMPL cell: the winner's compile time, or the compile failure code when no solve ran.
+function petab_cmp(d, pp)
+    pp == "petab_" || return fmt_cmp(d, pp)
+    css = [g(d, "petab_$(lab)_compile_status") for lab in petab_labels(d)]
+    "timeout" in css && return "T"
+    "error"   in css && return "E"
+    return "-"
+end
 fmt_slv(d, pfx) = begin
+    g(d, pfx * "solve_status") == "error" && return "E"
+    USE_SGM && g(d, pfx * "sgm_status") == "timeout" && return "T"
     if USE_SGM && g(d, pfx * "sgm_status") == "ok"
         raw = g(d, pfx * "solve_times")
         ts  = isempty(raw) ? Float64[] : Float64[x for x in (tryparse(Float64, s) for s in split(raw, ",")) if x !== nothing]
@@ -147,9 +157,10 @@ end
 slv_num(d, pfx) = (v = tryparse(Float64, fmt_slv(d, pfx)); v === nothing ? Inf : v)
 petab_solved(d, pfx) = g(d, pfx * "optimum_found") == "true"
 
-# Winning PEtab optimizer label for a model: prefer a converged optimizer, then the fastest. "" if none.
+# Winning PEtab optimizer label for a model: prefer a converged optimizer, then the fastest.
+# "" if no optimizer's solve ran.
 function pick_petab(d)
-    labs = petab_labels(d)
+    labs = filter(lab -> !(g(d, "petab_$(lab)_solve_status") in ("skipped", "")), petab_labels(d))
     isempty(labs) && return ""
     cand = [(lab, petab_solved(d, "petab_$(lab)_"), slv_num(d, "petab_$(lab)_")) for lab in labs]
     conv = filter(x -> x[2], cand); pool = isempty(conv) ? cand : conv
@@ -187,31 +198,32 @@ bar = "="^length(sub_hdr); sep = "-"^length(sub_hdr)
 println(buf, bar); println(buf, major_hdr); println(buf, sub_hdr); println(buf, sep)
 for (i, m) in enumerate(MODELS)
     d = D[i]; pp = petab_pfx[i]; po = petab_po[i]
-    tag_lbl = isempty(petab_win[i]) ? "-" : get(TAG_ABBR, petab_win[i], petab_win[i])
+    tag_lbl = (isempty(petab_win[i]) || fmt_slv(d, pp) == "E") ? "-" :
+              get(TAG_ABBR, petab_win[i], petab_win[i])
     @printf(buf, "%-*s | %*s %*s %*s  %*s %*s | %*s %*s %*s  %*s %*s | %*s %*s  %*s %*s\n",
         W_NAME, short_name(m),
         W_CMPL,disp(fmt_cmp(d,"exagpu_")), W_PCT,pct_exa_str(d,"exagpu_"), W_SOL,disp_sol(fmt_slv(d,"exagpu_")), W_STAT,madnlp_code(d,"exagpu_",po), W_GAP,gap_str(d,"exagpu_",po),
         W_CMPL,disp(fmt_cmp(d,"exacpu_")), W_PCT,pct_exa_str(d,"exacpu_"), W_SOL,disp_sol(fmt_slv(d,"exacpu_")), W_STAT,madnlp_code(d,"exacpu_",po), W_GAP,gap_str(d,"exacpu_",po),
-        W_CMPL,disp(fmt_cmp(d,pp)),        W_SOL,disp_sol(fmt_slv(d,pp)),                          W_STAT,petab_code(d,pp), W_TAG,tag_lbl)
+        W_CMPL,disp(petab_cmp(d,pp)),      W_SOL,disp_sol(fmt_slv(d,pp)),                          W_STAT,petab_code(d,pp), W_TAG,tag_lbl)
 end
 println(buf, sep)
 
 # ─── summary (GPU is the primary ExaModels backend) ─────────────────────────────
-exa_solved(i) = madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0", "0A", "0S", "0AS")
-exa_subopt(i) = madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0S", "0AS")
+exa_solved(i) = MODELS[i] in EXA_TARGETS && madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0", "0A", "0S", "0AS")
+exa_subopt(i) = MODELS[i] in EXA_TARGETS && madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0S", "0AS")
 nsolved = count(exa_solved, eachindex(MODELS))
 
 println(buf, "\nSUMMARY")
 @printf(buf, "  Target models          : %2d / %d  (%d unsupported events excluded)\n",
         length(BENCHMARK_MODELS), length(ALL_MODELS), length(EXCLUDED_MODELS))
-@printf(buf, "  ExaModels solved (GPU) : %2d / %2d  (solve status 0 / 0A / 0S / 0AS)\n", nsolved, length(MODELS))
+@printf(buf, "  ExaModels solved (GPU) : %2d / %2d  (solve status 0 / 0A / 0S / 0AS)\n", nsolved, length(BENCHMARK_MODELS))
 @printf(buf, "  Solved-but-suboptimal  : %2d / %2d  (converged but ROG ≥ %.2f vs PEtab 0S / 0AS )\n",
         count(exa_subopt, eachindex(MODELS)), nsolved, SUBOPT_ROG)
 
-println(buf, "\nKEY")
-println(buf, "  CMPL(s) := Model compilation time")
+println(buf, "\nTABLE KEY")
+println(buf, "  CMPL(s) := Model compilation time (T = compile timed out, E = compile errored)")
 println(buf, "  EXA(%)  := Fraction of model compile time spent on actual ExaModels build (PEtab setup + mesh generation)")
-println(buf, "  SOL(s)  := Solver solve time, shifted geometric mean (by δ = $(SGM_SHIFT)s) over n=$SGM_N reruns")
+println(buf, "  SOL(s)  := Solver solve time, shifted geometric mean (by δ = $(SGM_SHIFT)s) over n=$SGM_N reruns (E = solve errored, T = a rerun hit walltime)")
 println(buf, "  STAT    := Solver status")
 println(buf, "  ROG(-)  := relative objective gap = (petab.nllh(exa_p*) - petab_obj) / |petab_obj|  (negative => ExaModels lower)")
 println(buf, "  TAG     := Fastest PEtab optimizer for the model (IPN=Optim.IPNewton, GN=Fides.CustomHessian/GaussNewton, BFGS=Fides.BFGS)")
@@ -221,16 +233,17 @@ madnlp_desc = Dict("0"=>"SOLVE_SUCCEEDED", "0A"=>"SOLVED_TO_ACCEPTABLE_LEVEL",
     "0S"=>"SOLVE_SUCCEEDED, suboptimal (ROG ≥ $(SUBOPT_ROG) vs PEtab)",
     "0AS"=>"SOLVED_TO_ACCEPTABLE_LEVEL, suboptimal (ROG ≥ $(SUBOPT_ROG) vs PEtab)",
     "T"=>"WALLTIME_EXCEEDED (timeout)", "R"=>"RESTORATION_FAILED", "D"=>"SEARCH_DIRECTION_BECOMES_TOO_SMALL",
-    "I"=>"INFEASIBLE_PROBLEM_DETECTED", "5"=>"other", "E"=>"Error", "-"=>"compile_failed/not_run")
-const MADNLP_ORDER = ["0","0A","0S","0AS","T","R","D","I","5","E","-"]
+    "I"=>"INFEASIBLE_PROBLEM_DETECTED", "DV"=>"DIVERGING_ITERATES",
+    "?"=>"unrecognized term_status", "-"=>"compile or solve failed, or not run")
+const MADNLP_ORDER = ["0","0A","0S","0AS","T","R","D","I","DV","?","-"]
 petab_desc = Dict(
     "0"  => "Converged by gradient, ‖g‖∞ ≤ tol",
     "0F" => "Converged by objective (F), |Δf| ≤ ftol·|f| (with ‖g‖ > tol)",
     "0X" => "Converged by step (X), ‖Δx‖∞ ≤ xtol (with ‖g‖ > tol)",
     "T"  => "Walltime exceeded (timeout)",
     "1"  => "Not converged",
-    "E"  => "Error", "-" => "compile_failed/not_run")
-const PETAB_ORDER = ["0","0F","0X","T","1","E","-"]
+    "-" => "compile or solve failed, or not run")
+const PETAB_ORDER = ["0","0F","0X","T","1","-"]
 
 madnlp_present = Set{String}()
 for i in eachindex(MODELS)
@@ -240,9 +253,9 @@ end
 petab_present = Set(petab_code(D[i], petab_pfx[i]) for i in eachindex(MODELS))
 keyline(code, desc) = "   " * lpad(code, 3) * " : " * desc
 
-println(buf, "\n  MadNLP (Status)")
+println(buf, "\n  MadNLP STATUS KEY")
 for code in MADNLP_ORDER; code in madnlp_present && println(buf, keyline(code, madnlp_desc[code])); end
-println(buf, "\n  PEtab  (Status)")
+println(buf, "\n  PEtab STATUS KEY")
 for code in PETAB_ORDER;  code in petab_present  && println(buf, keyline(code, petab_desc[code]));  end
 println(buf, "\n", bar)
 

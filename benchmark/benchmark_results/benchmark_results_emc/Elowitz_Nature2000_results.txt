@@ -1,0 +1,17 @@
+petab_GaussNewton_compile_status=ok
+petab_GaussNewton_compile_time=70.11686897277832
+petab_GaussNewton_error=
+petab_GaussNewton_fconverged=true
+petab_GaussNewton_gconverged=false
+petab_GaussNewton_gresidual=
+petab_GaussNewton_has_events=false
+petab_GaussNewton_iter=24
+petab_GaussNewton_objective=-63.20424530693466
+petab_GaussNewton_optimum_found=true
+petab_GaussNewton_retcode=FTOL
+petab_GaussNewton_sgm_solve_time=8.902133975740433
+petab_GaussNewton_sgm_status=ok
+petab_GaussNewton_solve_status=ok
+petab_GaussNewton_solve_time=30.703950881958008
+petab_GaussNewton_solve_times=9.007828950881958,8.843026161193848,8.855198860168457,8.914069890975952,8.891503095626831
+petab_GaussNewton_xconverged=false
