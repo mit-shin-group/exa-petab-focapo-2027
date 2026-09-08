@@ -9,6 +9,9 @@ Live per-model status lives in `benchmark/benchmark_results/benchmark_results_<T
 
 ## The one constraint the code cannot express
 
+Dormant while `BENCH_INCLUDE_PETAB = false` and PEtab, Optim and Fides are out of the project.
+It applies again the moment they go back in.
+
 **Never set both an absolute and a relative tolerance on a PEtab optimizer.** The options are
 PEtab.jl's own recommended per-optimizer defaults, overridden only by the wall and iteration caps.
 Adding Fides `grtol`/`xtol` or Optim `f_abstol`/`x_reltol` hands PEtab extra early-stop criteria and

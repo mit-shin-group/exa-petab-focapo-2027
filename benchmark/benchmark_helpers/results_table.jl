@@ -79,7 +79,11 @@ function madnlp_code(d, pfx, po)
     if occursin("SUCCEEDED", term) || occursin("ACCEPTABLE", term)
         base = occursin("ACCEPTABLE", term) ? "0A" : "0"
         gp   = gap_val(d, pfx, po)
-        return (gp !== nothing && gp >= SUBOPT_ROG) ? base * "S" : base
+        code = (gp !== nothing && gp >= SUBOPT_ROG) ? base * "S" : base
+        # Mark a convergence the reruns did not reproduce: SOL(s) is over the converged ones only
+        n = g(d, pfx * "sgm_n")
+        return (!isempty(n) && length(split(n, "/")) == 2 && split(n, "/")[1] != split(n, "/")[2]) ?
+            code * "*" : code
     end
     occursin("WALLTIME",         term) && return "T"
     occursin("RESTORATION",      term) && return "R"
@@ -110,10 +114,6 @@ function petab_code(d, pfx)
     return "-"
 end
 
-pct_exa_str(d, pfx) = begin
-    ct = fparse(g(d, pfx * "compile_time")); pt = fparse(g(d, pfx * "presolve_time"))
-    (ct === nothing || pt === nothing || ct <= 0.0) ? "-" : @sprintf("%4.0f%%", 100.0 * (ct - pt) / ct)
-end
 fmt_cmp(d, pfx) = begin
     cs = g(d, pfx * "compile_status")
     cs == "timeout" && return "T"
@@ -130,7 +130,7 @@ function petab_cmp(d, pp)
 end
 fmt_slv(d, pfx) = begin
     g(d, pfx * "solve_status") == "error" && return "E"
-    USE_SGM && g(d, pfx * "sgm_status") == "timeout" && return "T"
+    USE_SGM && g(d, pfx * "sgm_status") in ("timeout", "nonconverged") && return "T"
     if USE_SGM && g(d, pfx * "sgm_status") == "ok"
         raw = g(d, pfx * "solve_times")
         ts  = isempty(raw) ? Float64[] : Float64[x for x in (tryparse(Float64, s) for s in split(raw, ",")) if x !== nothing]
@@ -171,8 +171,8 @@ end
 
 # ─── column widths ────────────────────────────────────────────────────────────
 const W_NAME = 14
-const W_CMPL, W_PCT, W_SOL, W_STAT, W_GAP, W_TAG = 7, 6, 8, 4, 8, 4   # W_SOL=8 fits fixed 3-dp solve times
-const W_EXA_INNER   = W_CMPL + 1 + W_PCT + 1 + W_SOL + 2 + W_STAT + 1 + W_GAP   # GPU & CPU groups
+const W_CMPL, W_SOL, W_STAT, W_GAP, W_TAG = 7, 8, 4, 8, 4   # W_SOL=8 fits fixed 3-dp solve times
+const W_EXA_INNER   = W_CMPL + 1 + W_SOL + 2 + W_STAT + 1 + W_GAP   # GPU & CPU groups
 const W_PETAB_INNER = W_CMPL + 1 + W_SOL + 2 + W_STAT + 1 + W_TAG               # PEtab (no GAP; + TAG)
 
 # ─── build report ───────────────────────────────────────────────────────────────
@@ -188,10 +188,10 @@ major_hdr = @sprintf("%-*s | %s | %s | %s",
     center_str("ExaModels + MadNLP (GPU)", W_EXA_INNER),
     center_str("ExaModels + MadNLP (CPU)", W_EXA_INNER),
     center_str("PEtab.jl + Best Optimizer", W_PETAB_INNER))
-sub_hdr = @sprintf("%-*s | %*s %*s %*s  %*s %*s | %*s %*s %*s  %*s %*s | %*s %*s  %*s %*s",
+sub_hdr = @sprintf("%-*s | %*s %*s  %*s %*s | %*s %*s  %*s %*s | %*s %*s  %*s %*s",
     W_NAME, "Model",
-    W_CMPL,"CMPL(s)", W_PCT,"EXA(%)", W_SOL,"SOL(s)", W_STAT,"STAT", W_GAP,"ROG(-)",
-    W_CMPL,"CMPL(s)", W_PCT,"EXA(%)", W_SOL,"SOL(s)", W_STAT,"STAT", W_GAP,"ROG(-)",
+    W_CMPL,"CMPL(s)", W_SOL,"SOL(s)", W_STAT,"STAT", W_GAP,"ROG(-)",
+    W_CMPL,"CMPL(s)", W_SOL,"SOL(s)", W_STAT,"STAT", W_GAP,"ROG(-)",
     W_CMPL,"CMPL(s)", W_SOL,"SOL(s)", W_STAT,"STAT", W_TAG,"TAG")
 bar = "="^length(sub_hdr); sep = "-"^length(sub_hdr)
 
@@ -200,11 +200,11 @@ for (i, m) in enumerate(MODELS)
     d = D[i]; pp = petab_pfx[i]; po = petab_po[i]
     tag_lbl = (isempty(petab_win[i]) || fmt_slv(d, pp) == "E") ? "-" :
               get(TAG_ABBR, petab_win[i], petab_win[i])
-    @printf(buf, "%-*s | %*s %*s %*s  %*s %*s | %*s %*s %*s  %*s %*s | %*s %*s  %*s %*s\n",
+    @printf(buf, "%-*s | %*s %*s  %*s %*s | %*s %*s  %*s %*s | %*s %*s  %*s %*s\n",
         W_NAME, short_name(m),
-        W_CMPL,disp(fmt_cmp(d,"exagpu_")), W_PCT,pct_exa_str(d,"exagpu_"), W_SOL,disp_sol(fmt_slv(d,"exagpu_")), W_STAT,madnlp_code(d,"exagpu_",po), W_GAP,gap_str(d,"exagpu_",po),
-        W_CMPL,disp(fmt_cmp(d,"exacpu_")), W_PCT,pct_exa_str(d,"exacpu_"), W_SOL,disp_sol(fmt_slv(d,"exacpu_")), W_STAT,madnlp_code(d,"exacpu_",po), W_GAP,gap_str(d,"exacpu_",po),
-        W_CMPL,disp(petab_cmp(d,pp)),      W_SOL,disp_sol(fmt_slv(d,pp)),                          W_STAT,petab_code(d,pp), W_TAG,tag_lbl)
+        W_CMPL,disp(fmt_cmp(d,"exagpu_")), W_SOL,disp_sol(fmt_slv(d,"exagpu_")), W_STAT,madnlp_code(d,"exagpu_",po), W_GAP,gap_str(d,"exagpu_",po),
+        W_CMPL,disp(fmt_cmp(d,"exacpu_")), W_SOL,disp_sol(fmt_slv(d,"exacpu_")), W_STAT,madnlp_code(d,"exacpu_",po), W_GAP,gap_str(d,"exacpu_",po),
+        W_CMPL,disp(petab_cmp(d,pp)),      W_SOL,disp_sol(fmt_slv(d,pp)),        W_STAT,petab_code(d,pp), W_TAG,tag_lbl)
 end
 println(buf, sep)
 
@@ -214,7 +214,7 @@ exa_subopt(i) = MODELS[i] in EXA_TARGETS && madnlp_code(D[i],"exagpu_",petab_po[
 nsolved = count(exa_solved, eachindex(MODELS))
 
 println(buf, "\nSUMMARY")
-@printf(buf, "  Target models          : %2d / %d  (%d unsupported events excluded)\n",
+@printf(buf, "  Target models          : %2d / %d  (%d excluded, see EXCLUDED_MODELS)\n",
         length(BENCHMARK_MODELS), length(ALL_MODELS), length(EXCLUDED_MODELS))
 @printf(buf, "  ExaModels solved (GPU) : %2d / %2d  (solve status 0 / 0A / 0S / 0AS)\n", nsolved, length(BENCHMARK_MODELS))
 @printf(buf, "  Solved-but-suboptimal  : %2d / %2d  (converged but ROG ≥ %.2f vs PEtab 0S / 0AS )\n",
@@ -222,8 +222,7 @@ println(buf, "\nSUMMARY")
 
 println(buf, "\nTABLE KEY")
 println(buf, "  CMPL(s) := Model compilation time (T = compile timed out, E = compile errored)")
-println(buf, "  EXA(%)  := Fraction of model compile time spent on actual ExaModels build (PEtab setup + mesh generation)")
-println(buf, "  SOL(s)  := Solver solve time, shifted geometric mean (by δ = $(SGM_SHIFT)s) over n=$SGM_N reruns (E = solve errored, T = a rerun hit walltime)")
+println(buf, "  SOL(s)  := Solver solve time, shifted geometric mean (by δ = $(SGM_SHIFT)s) over the converged reruns of n=$SGM_N (E = solve errored, T = no rerun converged; STAT * = fewer than $SGM_N converged, sgm_n in the result file has the count)")
 println(buf, "  STAT    := Solver status")
 println(buf, "  ROG(-)  := relative objective gap = (petab.nllh(exa_p*) - petab_obj) / |petab_obj|  (negative => ExaModels lower)")
 println(buf, "  TAG     := Fastest PEtab optimizer for the model (IPN=Optim.IPNewton, GN=Fides.CustomHessian/GaussNewton, BFGS=Fides.BFGS)")

@@ -7,7 +7,7 @@
 #   julia --project=. -t 1 benchmark_helpers/run_warmup.jl [gpu_id]
 #   BENCH_BACKEND=cpu julia --project=. -t 1 benchmark_helpers/run_warmup.jl
 
-using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, Optim, Fides, LinearAlgebra
+using ExaModelsPEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels, LinearAlgebra
 # HSL is a licensed, user-supplied dependency (see README); only the CPU pass needs it.
 if lowercase(get(ENV, "BENCH_BACKEND", "gpu")) == "cpu"
     using MadNLPHSL
@@ -19,31 +19,14 @@ include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + RESULTDIR + model
 const TARGET    = BENCH_WARMUP_MODEL   # the warmup model, benchmarked here
 const JIT_MODEL = TARGET == "Crauste_CellSystems2017" ? "Bruno_JExpBot2016" : "Crauste_CellSystems2017"  # JIT-warm on a different model
 
-const K             = BENCH_K
-const SUBDIVIDE     = BENCH_SUBDIVIDE
 const TOL           = BENCH_TOL
 const COMPILE_LIMIT = BENCH_COMPILE_LIMIT
-const PETAB_COMPILE_LIMIT = BENCH_COMPILE_LIMIT
 const SOLVE_LIMIT   = BENCH_SOLVE_LIMIT
 const MAX_ITER      = BENCH_MAX_ITER
 const N_SGM_RERUNS  = BENCH_SGM_N
 const SGM_SHIFT     = BENCH_SGM_SHIFT
 const ACCEPT_TOL    = BENCH_ACCEPT_TOL
 const ACCEPT_ITER   = BENCH_ACCEPT_ITER
-const PETAB_SGM_N   = BENCH_SGM_N
-
-# Optimizers run in series, paired by index with their hessian. Normalize a single entry to a vector.
-const OPTIMIZERS    = BENCH_PETAB_OPTIMIZERS() isa AbstractVector ? BENCH_PETAB_OPTIMIZERS() : [BENCH_PETAB_OPTIMIZERS()]
-const HESSIANS      = BENCH_PETAB_HESSIANS   isa AbstractVector ? BENCH_PETAB_HESSIANS   : [BENCH_PETAB_HESSIANS]
-length(OPTIMIZERS) == length(HESSIANS) ||
-    error("BENCH_PETAB_OPTIMIZERS and BENCH_PETAB_HESSIANS must be both single entries or vectors of equal length (got $(length(OPTIMIZERS)) vs $(length(HESSIANS)))")
-# Per-optimizer label (result-key prefix), Fides check, and nothing-aware problem build.
-petab_label(opt) = opt isa Optim.IPNewton      ? "IPNewton"    :
-                   opt isa Fides.BFGS          ? "BFGS"        :
-                   opt isa Fides.CustomHessian ? "GaussNewton" : string(nameof(typeof(opt)))
-is_fides(opt)    = opt isa Fides.HessianUpdate
-build_pe(yaml, hess) = hess === nothing ? PEtabODEProblem(PEtabModel(yaml)) :
-                                          PEtabODEProblem(PEtabModel(yaml); hessian_method = hess)
 
 const BACKEND = lowercase(get(ENV, "BENCH_BACKEND", "gpu"))
 const IS_GPU  = BACKEND != "cpu"
@@ -87,23 +70,6 @@ function with_hard_deadline(f, seconds::Real)
     w = run(`bash -c "sleep $(seconds); kill -9 $(pid)"`; wait=false)
     try; return f(); finally; try; kill(w); catch; end; end
 end
-# PEtab's objective at the ExaModels optimum. p is in parameters-table order, so permute into
-# PEtab's xnames order by name. The PEtabODEProblem build is untimed (the exa pipeline does not
-# use PEtab.jl); NaN if the build or eval fails.
-function petab_obj_at_exa(yaml, model, res)
-    try
-        PEprob = with_hard_deadline(COMPILE_LIMIT) do
-            PEtab.PEtabODEProblem(PEtab.PEtabModel(yaml))
-        end
-        pnames = model.petab.pnames
-        theta  = Array(res.solution)[1:length(pnames)]
-        xperm  = [findfirst(==(Symbol(nm)), pnames) for nm in Symbol.(PEprob.xnames)]
-        return PEprob.nllh(theta[xperm])
-    catch
-        return NaN
-    end
-end
-
 # inf-norm (max) constraint violation max(lcon - c(x), c(x) - ucon, 0) at point x; 0 if unconstrained.
 function max_constr_viol(model, x)
     model.meta.ncon == 0 && return 0.0
@@ -113,76 +79,62 @@ function max_constr_viol(model, x)
 end
 
 # ─── ExaModels build (backend-parametrized) ──────────────
-# Mirrors examodel_petab (api.jl at the pinned ExaModelsPEtab commit), split so t_phase1 marks
-# the boundary between setup (tables + spec + mesh + nominal solves + variables) and the
-# ExaModels constraint/objective build.
-function build_model(yaml, t_origin)
-    backend  = IS_GPU ? CUDA.CUDABackend() : nothing
-    tables   = ExaModelsPEtab.PEtabTables(yaml)
-    modelsys = ExaModelsPEtab._load_model(tables)
-    spec     = ExaModelsPEtab._compile_spec(tables, modelsys)
-    theta0   = ExaModelsPEtab._resolve_theta0(spec, nothing)
-
-    if ExaModelsPEtab._is_steady_state(spec)
-        ExaModelsPEtab._has_preequilibration(spec) && error(
-            "unsupported pre-equilibration with steady-state (time=Inf) measurements")
-        zss0      = ExaModelsPEtab._steady_states(spec, modelsys, theta0)
-        u_vals_ss = ExaModelsPEtab._ss_u_vals(spec)
-        c = ExaModels.ExaCore(; backend = backend)
-        c = ExaModelsPEtab._create_variables_ss(c, spec, theta0, zss0)
-        t_phase1 = time() - t_origin
-        c = ExaModelsPEtab._create_constraints_ss(c, spec, theta0, u_vals_ss)
-        c, y0, sigma0 = ExaModelsPEtab._create_objective(c, spec, tables,
-                                                         ExaModelsPEtab._ss_ctx(c, spec, zss0))
-        meas_iidx = Int[]
-    else
-        # Mesh placement follows the package's model-size default (:integrator or :uniform)
-        mi = ExaModelsPEtab._default_mesh_init(spec)
-        mesh = mi === :uniform ?
-            ExaModelsPEtab._build_mesh(spec; subdivide = SUBDIVIDE,
-                                       variant = ExaModelsPEtab._VARIANT) :
-            ExaModelsPEtab._init_mesh(spec, modelsys, theta0, K; subdivide = SUBDIVIDE,
-                                      variant = ExaModelsPEtab._VARIANT,
-                                      ExaModelsPEtab._meshinit_defaults(spec)...)
-        c    = ExaModelsPEtab.EMC.CollocationExaCore(ExaModelsPEtab._core_nodes(mesh, spec.Nc),
-                                                     K; backend = backend)
-        z_init, zss_init = ExaModelsPEtab._solve_conditions(spec, modelsys, theta0, mesh,
-                                                            c.weights.taus)
-        c = ExaModelsPEtab._create_variables(c, spec, mesh, theta0, z_init, zss_init)
-        t_phase1 = time() - t_origin
-        c = ExaModelsPEtab._create_collocation(c, spec, mesh)
-        c = ExaModelsPEtab._create_continuity(c, spec, mesh)
-        z0arr = reshape(ExaModelsPEtab._var_starts(c, c.z), spec.Nz, spec.Nc, mesh.N, c.K + 1)
-        c, y0, sigma0 = ExaModelsPEtab._create_objective(c, spec, tables,
-                            ExaModelsPEtab._collocation_ctx(c, spec, mesh, z0arr))
-        meas_iidx = copy(mesh.meas_iidx)
-    end
-    ExaModelsPEtab._assert_no_flat_p(spec)
-    c = ExaModelsPEtab._attach_petab_meta(c, spec, tables, meas_iidx)
-    mdl = ExaModels.ExaModel(c)
-    ExaModels.set_start!(mdl, c.y, y0)
-    ExaModels.set_start!(mdl, c.sigma, sigma0)
+# ─── build one ExaModel ──
+# The public API call, timed whole: there is no PEtab.jl setup phase left to separate out.
+function build_model(yaml)
+    mdl = examodel_petab(yaml; backend = IS_GPU ? CUDA.CUDABackend() : nothing)
     IS_GPU && CUDA.synchronize()
-    return mdl, mdl.meta.nvar, mdl.meta.ncon, t_phase1
+    return mdl, mdl.meta.nvar, mdl.meta.ncon
 end
 
+is_converged(solve_status) = uppercase(solve_status) in ("SOLVE_SUCCEEDED", "SOLVED_TO_ACCEPTABLE_LEVEL")
+
+# theta at the solution, the vector evaluate_objective takes
+function theta_star(model, solution)
+    haskey(model.refs, :theta) || return Float64[]
+    theta = model.refs.theta
+    return Array(solution)[theta.offset .+ (1:theta.length)]
+end
+
+# Draw warm reruns until N_SGM_RERUNS of them converge, allowing one extra attempt.
 function run_sgm_reruns(m, rp, model)
     write_result(rp, Dict(PFX*"sgm_status" => "running"))
-    solve_times = Float64[]
-    for i in 1:N_SGM_RERUNS
-        @info "[$m] SGM solve $i/$N_SGM_RERUNS ..."
+    solve_times = Float64[]; iters = Int[]; solve_statuses = String[]; objectives = Float64[]
+    max_attempts = N_SGM_RERUNS + 1
+    while length(solve_times) < max_attempts && count(is_converged, solve_statuses) < N_SGM_RERUNS
+        attempt = length(solve_times) + 1
+        @info "[$m] SGM solve $attempt/$max_attempts ..."
         try
             IS_GPU && GC.gc()     # clear dead GPU allocs OUTSIDE timing; stops a GC/allocator stall landing in a timed solve (keeps pool+kernels warm; no reclaim)
-            t0 = time(); solve_madnlp(model); push!(solve_times, time() - t0)
+            t0 = time(); res = solve_madnlp(model); push!(solve_times, time() - t0)
+            push!(iters, res.iter); push!(solve_statuses, string(res.status)); push!(objectives, res.objective)
         catch e
-            @error "[$m] SGM solve $i failed" exception=(e, catch_backtrace())
+            @error "[$m] SGM solve $attempt failed" exception=(e, catch_backtrace())
             write_result(rp, Dict(PFX*"sgm_status" => "error", PFX*"sgm_error" => sprint(showerror, e))); return
         end
     end
-    sgm_solve = t_sgmdelta(solve_times, SGM_SHIFT)
-    write_result(rp, Dict(PFX*"sgm_status" => "ok",
-                          PFX*"solve_times" => join(solve_times, ","), PFX*"sgm_solve_time" => sgm_solve))
-    @info "[$m] SGM done: solve=$sgm_solve s (n=$N_SGM_RERUNS)"
+    converged = is_converged.(solve_statuses)
+    converged_times = solve_times[converged]
+    out = Dict{String,Any}(PFX*"sgm_status"       => "ok",
+                           PFX*"solve_times"      => join(converged_times, ","),
+                           PFX*"sgm_times_all"    => join(solve_times, ","),
+                           PFX*"sgm_iters"        => join(iters, ","),
+                           PFX*"sgm_solve_status" => join(solve_statuses, ","),
+                           PFX*"sgm_objectives"   => join(objectives, ","),
+                           PFX*"sgm_n"            => "$(count(converged))/$(length(solve_times))")
+    if isempty(converged_times)
+        out[PFX*"sgm_status"] = "nonconverged"
+        out[PFX*"sgm_error"]  = "0 of $(length(solve_times)) reruns converged, no SGM"
+        @info "[$m] SGM: 0/$(length(solve_times)) reruns converged, no SGM"
+    else
+        sorted_times = sort(converged_times)
+        out[PFX*"sgm_solve_time"] = t_sgmdelta(converged_times, SGM_SHIFT)
+        out[PFX*"sgm_median"]     = sorted_times[cld(length(sorted_times), 2)]
+        out[PFX*"sgm_min"]        = sorted_times[1]
+        out[PFX*"sgm_max"]        = sorted_times[end]
+        @info "[$m] SGM done: solve=$(out[PFX*"sgm_solve_time"]) s over $(out[PFX*"sgm_n"]) converged reruns"
+    end
+    write_result(rp, out)
 end
 
 # ─── ExaModels benchmark for the target (compile + first solve + SGM) ───────────
@@ -193,20 +145,20 @@ function bench_exa(m)
     model = nothing
 
     write_result(rp, Dict(
-        PFX*"compile_status" => "compiling", PFX*"compile_time" => "", PFX*"presolve_time" => "",
+        PFX*"compile_status" => "compiling", PFX*"compile_time" => "",
         PFX*"solve_status"   => "skipped",   PFX*"solve_time"   => "", PFX*"term_status"   => "",
-        PFX*"objective"      => "",          PFX*"petab_obj"    => "", PFX*"iter" => "",
+        PFX*"objective"      => "",          PFX*"iter"         => "",
         PFX*"nvar"           => "",          PFX*"ncon"         => "", PFX*"error" => "",
-        PFX*"constr_viol"    => "",
+        PFX*"constr_viol"    => "",          PFX*"theta_star"   => "",
     ))
-    @info "[$m] EXA compiling on $BACKEND (K=$K)..."
+    @info "[$m] EXA compiling on $BACKEND ..."
     try
         t0 = time()
-        mdl, nvar, ncon, t_phase1 = with_hard_deadline(COMPILE_LIMIT) do; build_model(yaml, t0); end
+        mdl, nvar, ncon = with_hard_deadline(COMPILE_LIMIT) do; build_model(yaml); end
         model = mdl
         write_result(rp, Dict(
             PFX*"compile_status" => "ok", PFX*"compile_time" => time() - t0,
-            PFX*"presolve_time"  => t_phase1, PFX*"nvar" => nvar, PFX*"ncon" => ncon,
+            PFX*"nvar" => nvar, PFX*"ncon" => ncon,
         ))
     catch e
         write_result(rp, Dict(PFX*"compile_status" => "error", PFX*"error" => sprint(showerror, e)))
@@ -223,9 +175,8 @@ function bench_exa(m)
             PFX*"term_status"  => string(res.status), PFX*"objective" => res.objective,
             PFX*"iter"         => res.iter,
             PFX*"constr_viol"  => max_constr_viol(model, res.solution),
+            PFX*"theta_star"   => join(theta_star(model, res.solution), ","),
         ))
-        # Untimed reference eval, written separately so a kill here cannot lose the solve row
-        write_result(rp, Dict(PFX*"petab_obj" => petab_obj_at_exa(yaml, model, res)))
     catch e
         write_result(rp, Dict(PFX*"solve_status" => "error", PFX*"error" => sprint(showerror, e)))
         @error "[$m] EXA solve failed" exception=(e, catch_backtrace()); model = nothing; gpu_reclaim(); return
@@ -240,160 +191,16 @@ function bench_exa(m)
     @info "[$m] EXA done"
 end
 
-# ─── PEtab benchmark for the target ──────────────────────────────────────────────
-# Per-optimizer options = PEtab.jl's recommended defaults + the uniform wall/iteration caps.
-# PEtab.jl's own default optimizer options (Optim DEFAULT_OPT / bare FidesOptions), overriding only
-# the wall-time + iteration caps. g_abstol = BENCH_TOL = 1e-6 matches PEtab's Optim g_tol default.
-petab_options(isf) = isf ?
-    Fides.FidesOptions(gatol=TOL, maxiter=MAX_ITER, maxtime=SOLVE_LIMIT) :
-    Optim.Options(g_abstol=TOL, f_reltol=1e-8, x_abstol=0.0, allow_f_increases=true,
-                  successive_f_tol=3, iterations=MAX_ITER, time_limit=SOLVE_LIMIT, show_trace=false)
-
-function has_events(PEprob)
-    cbs = PEprob.model_info.simulation_info.callbacks
-    for (_, cb) in cbs
-        cc = hasproperty(cb, :continuous_callbacks) ? getproperty(cb, :continuous_callbacks) : ()
-        dc = hasproperty(cb, :discrete_callbacks)   ? getproperty(cb, :discrete_callbacks)   : ()
-        (!isempty(cc) || !isempty(dc)) && return true
-    end
-    return false
-end
-
-# Benchmark ONE optimizer for the warmup model, under prefix petab_<label>_.
-function bench_petab_one(m, rp, yaml, pfx, opt, hess)
-    isf  = is_fides(opt)
-    opts = petab_options(isf)
-
-    write_result(rp, Dict(
-        pfx*"compile_status" => "compiling", pfx*"compile_time" => "",
-        pfx*"solve_status"   => "skipped",   pfx*"solve_time"   => "",
-        pfx*"objective"      => "",           pfx*"iter"        => "",
-        pfx*"optimum_found"  => "",           pfx*"has_events"  => "", pfx*"error" => "",
-    ))
-    @info "[$m] PEtab compiling [$pfx]..."
-    PEprob = nothing
-    try
-        t0 = time()
-        PEprob = with_hard_deadline(PETAB_COMPILE_LIMIT) do
-            p  = build_pe(yaml, hess)
-            x0 = get_x(p); np = length(x0)
-            p.nllh(x0); p.grad!(zeros(np), x0); try; p.hess!(zeros(np, np), x0); catch; end; p
-        end
-        write_result(rp, Dict(pfx*"compile_status" => "ok", pfx*"compile_time" => time() - t0,
-                              pfx*"has_events" => has_events(PEprob)))
-    catch e
-        write_result(rp, Dict(pfx*"compile_status" => "error", pfx*"error" => sprint(showerror, e))); return
-    end
-
-    @info "[$m] PEtab solving [$pfx]..."
-    write_result(rp, Dict(pfx*"solve_status" => "solving"))
-    try
-        t0 = time()
-        res = with_hard_deadline(SOLVE_LIMIT + 600.0) do; calibrate(PEprob, get_x(PEprob), opt; options=opts); end
-        # Convergence: Optim per-criterion booleans vs Fides retcode.
-        gconv = ""; gres = ""; fconv = ""; xconv = ""
-        optimum_found = "false"; solve_err = !isfinite(res.fmin)
-        if isf
-            rc = res.converged
-            optimum_found = string(rc in (:GTOL, :FTOL, :XTOL))
-            gconv = string(rc === :GTOL); fconv = string(rc === :FTOL); xconv = string(rc === :XTOL)
-            solve_err |= rc in (:DID_NOT_RUN, :NOT_FINITE, :Optimisation_failed, :Optmisation_failed)
-        else
-            optimum_found = string(res.converged === true)
-            solve_err |= (res.converged === :Optimisation_failed)
-            try; o = res.original
-                gconv = string(Optim.g_converged(o)); gres = string(Optim.g_residual(o))
-                fconv = string(Optim.f_converged(o)); xconv = string(Optim.x_converged(o)); catch; end
-        end
-        write_result(rp, Dict(
-            pfx*"solve_status"  => solve_err ? "error" : "ok",
-            pfx*"solve_time"    => time() - t0, pfx*"objective" => res.fmin,
-            pfx*"iter"          => res.niterations, pfx*"optimum_found" => optimum_found,
-            pfx*"retcode"       => string(res.converged),
-            pfx*"gconverged"    => gconv, pfx*"gresidual" => gres,
-            pfx*"fconverged"    => fconv, pfx*"xconverged" => xconv,
-        ))
-    catch e
-        write_result(rp, Dict(pfx*"solve_status" => "error", pfx*"error" => sprint(showerror, e)))
-    end
-
-    if PETAB_SGM_N > 0 && get(read_result(rp), pfx*"optimum_found", "") == "true"
-        write_result(rp, Dict(pfx*"sgm_status" => "running"))
-        ptimes = Float64[]; ok = true
-        for i in 1:PETAB_SGM_N
-            @info "[$m] PEtab SGM solve [$pfx] $i/$PETAB_SGM_N ..."
-            try
-                t0 = time()
-                calibrate(PEprob, get_x(PEprob), opt; options=opts)   # warm rerun, timed bare
-                push!(ptimes, time() - t0)
-            catch e
-                @error "[$m] PEtab SGM solve $i failed" exception=(e, catch_backtrace())
-                write_result(rp, Dict(pfx*"sgm_status" => "error", pfx*"sgm_error" => sprint(showerror, e))); ok = false; break
-            end
-        end
-        if ok
-            psgm = t_sgmdelta(ptimes, SGM_SHIFT)
-            write_result(rp, Dict(pfx*"sgm_status" => "ok",
-                                  pfx*"solve_times" => join(ptimes, ","), pfx*"sgm_solve_time" => psgm))
-            @info "[$m] PEtab SGM done [$pfx]: solve=$psgm s (n=$PETAB_SGM_N)"
-        end
-    end
-end
-
-# Run every optimizer in series for the warmup model.
-function bench_petab(m)
-    LinearAlgebra.BLAS.set_num_threads(BENCH_CPU_THREADS)   # restore CPU BLAS threads (the exa solve pins them)
-    rp   = result_path(m)
-    yaml = get_yaml(m)
-    if yaml === nothing
-        for opt in OPTIMIZERS
-            pfx = "petab_$(petab_label(opt))_"
-            write_result(rp, Dict(pfx*"compile_status" => "missing_yaml", pfx*"solve_status" => "skipped"))
-        end
-        return
-    end
-    for (opt, hess) in zip(OPTIMIZERS, HESSIANS)
-        bench_petab_one(m, rp, yaml, "petab_$(petab_label(opt))_", opt, hess)
-    end
-end
-
 function warmup_exa()
     yaml = get_yaml(JIT_MODEL); yaml === nothing && return
     @info "EXA warmup: JIT build+solve on $JIT_MODEL ($BACKEND) ..."
     try
-        t0 = time(); mdl, _, _, _ = build_model(yaml, t0); IS_GPU && CUDA.synchronize()
+        mdl, _, _ = build_model(yaml); IS_GPU && CUDA.synchronize()
         madnlp(mdl; tol=TOL, acceptable_tol=ACCEPT_TOL, acceptable_iter=ACCEPT_ITER, max_iter=MAX_ITER,
                max_wall_time=250.0, linear_solver=LINEAR_SOLVER, KKT_OPTS...)
         mdl = nothing; gpu_reclaim(); @info "EXA warmup done"
     catch e; @warn "EXA warmup failed" exception=(e, catch_backtrace()); end
 end
-function warmup_petab()
-    yaml = get_yaml(JIT_MODEL); yaml === nothing && return
-    @info "PEtab warmup: JIT calibrate each optimizer on $JIT_MODEL ..."
-    for (opt, hess) in zip(OPTIMIZERS, HESSIANS)
-        try
-            wp = build_pe(yaml, hess)
-            wx = get_x(wp); try; wp.hess!(zeros(length(wx), length(wx)), wx); catch; end
-            wopts = is_fides(opt) ? Fides.FidesOptions(maxiter=3) : Optim.Options(iterations=3)
-            calibrate(wp, wx, opt; options=wopts)
-        catch e; @warn "PEtab warmup failed for $(petab_label(opt))" exception=(e, catch_backtrace()); end
-    end
-    @info "PEtab warmup done"
-end
-
-# One PEtab optimizer entry is terminal (same condition as run_petab.jl's resume check).
-petab_opt_finished(d, pfx) =
-    get(d, pfx*"compile_status", "") in ("error", "missing_yaml", "timeout") ||
-    (get(d, pfx*"compile_status", "") == "ok" &&
-     get(d, pfx*"solve_status", "") in ("ok", "error", "timeout") &&
-     (PETAB_SGM_N == 0 || get(d, pfx*"sgm_status", "") in ("ok", "error", "skipped")))
-
-# The PEtab warmup is redundant once every optimizer is already benchmarked for the warmup model.
-function petab_finished(m)
-    d = read_result(result_path(m))
-    all(opt -> petab_opt_finished(d, "petab_$(petab_label(opt))_"), OPTIMIZERS)
-end
-
 function main()
     gpu_idx = findfirst(a -> occursin(r"^\d+$", a), ARGS)
     gpu_id  = gpu_idx === nothing ? 0 : parse(Int, ARGS[gpu_idx])
@@ -401,24 +208,14 @@ function main()
     mkpath(RESULTDIR)
     @info "run_warmup: target=$TARGET jit=$JIT_MODEL backend=$BACKEND prefix=$PFX"
 
-    # Run only the side the current tag covers (BENCH_INCLUDE_* in options.jl); BENCH_PETAB_ONLY=1
-    # forces the PEtab-only side.
-    petab_only = get(ENV, "BENCH_PETAB_ONLY", "0") == "1"
-    run_exa = !petab_only && ((IS_GPU && BENCH_INCLUDE_EXAGPU) || (!IS_GPU && BENCH_INCLUDE_EXACPU))
-    # Skip the PEtab warmup+benchmark once every optimizer is already terminal — it is
-    # backend-independent, so each backend invocation would otherwise re-run it redundantly.
-    run_pet = (petab_only || BENCH_INCLUDE_PETAB) && !petab_finished(TARGET)
+    # Run only the side the current tag covers (BENCH_INCLUDE_* in options.jl).
+    run_exa = (IS_GPU && BENCH_INCLUDE_EXAGPU) || (!IS_GPU && BENCH_INCLUDE_EXACPU)
 
     if run_exa
         warmup_exa()
         bench_exa(TARGET)
     end
-    if run_pet
-        warmup_petab()
-        bench_petab(TARGET)
-    end
-    run_pet || @info "PEtab warmup skipped ($TARGET already benchmarked for all optimizers)"
-    @info "run_warmup complete (exa=$run_exa petab=$run_pet)"
+    @info "run_warmup complete (exa=$run_exa)"
 end
 
 main()

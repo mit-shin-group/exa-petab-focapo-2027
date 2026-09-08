@@ -11,23 +11,20 @@ const BENCH_TAG = "emc"
 # Choose which backend(s) to benchmark in this tagged run. 
 # If more than one, it runs in series: ExaGPU -> ExaCPU -> PEtab
 const BENCH_INCLUDE_EXAGPU = true
-const BENCH_INCLUDE_EXACPU = true
-const BENCH_INCLUDE_PETAB  = true
+const BENCH_INCLUDE_EXACPU = false
+const BENCH_INCLUDE_PETAB  = false
 
 # ── 1. SHARED OPTIONS (both backends) ────────────────────────────────────────────────────
 const BENCH_TOL           = 1e-6           # gradient-based convergence tol
-const BENCH_SOLVE_LIMIT   = 3600.0         # optimizer timeout [s]
-const BENCH_COMPILE_LIMIT = 3600.0         # build/compile timeout [s]
+const BENCH_SOLVE_LIMIT   = 900.0          # optimizer timeout [s]
+const BENCH_COMPILE_LIMIT = 900.0          # build/compile timeout [s]
 const BENCH_MAX_ITER      = 100_000_000    # max solver iterations
 const BENCH_SGM_N         = 5              # number of reruns for t_SGMδ
 const BENCH_SGM_SHIFT     = 0.01           # shift δ [s] for the shifted geometric mean
 const BENCH_WARMUP_MODEL  = "Bruno_JExpBot2016"  # warmup model
 
 # ── 2. ExaModelsPEtab ────────────────────────────────────────────────────────
-# ExaModelsPEtab options
-const BENCH_K = 4 # number of interpolation points points per mesh interval
-const BENCH_SUBDIVIDE = 10 # equal parts each required mesh interval is split into
-const BENCH_SD_CAP    = 40 # mesh escalation cap: BENCH_ESCALATE=1 doubles subdivide up to this on infeasible or restoration-failed solves
+# ExaModelsPEtab picks the mesh and K itself from the model size, so there is nothing to set here.
 # MadNLP options
 const BENCH_ACCEPT_TOL  = 1e-4             # MadNLP acceptable_tol
 const BENCH_ACCEPT_ITER = 15               # iters at acceptable_tol before accepting
@@ -39,14 +36,8 @@ BENCH_GPU_SOLVER() = MadNLPGPU.CUDSSSolver # GPU
 BENCH_CPU_SOLVER() = MadNLPHSL.Ma57Solver # CPU
 
 # ── 3. PEtab.jl ─────────────────────────────────────────────────────
-# PEtab.jl recommends the following optimizers:
-#   Small models        : Optim.IPNewton() with BENCH_PETAB_HESSIAN = :ForwardDiffv(hessian_method = ... in PEtabODEProblem)
-#   Medium-sized models : Fides.CustomHessian() with BENCH_PETAB_HESSIAN = :GaussNewton (hessian_method = ... in PEtabODEProblem)
-#   Large models        : Fides.BFGS() with BENCH_PETAB_HESSIAN = nothing 
-#                         (i.e., hessian_method not specified, calibrate(petab_prob, x0, Fides.BFGS()))
-# Can either put a single entry or vector with an equal-length vector pair for PETAB_HESSIANS
-BENCH_PETAB_OPTIMIZERS() = [Optim.IPNewton(), Fides.CustomHessian(), Fides.BFGS()]
-const BENCH_PETAB_HESSIANS = [:ForwardDiff, :GaussNewton, nothing]
+# PEtab.jl, Optim and Fides are out of the project while BENCH_INCLUDE_PETAB = false, so the
+# optimizer settings that named them are removed with them. Restore both together.
 
 # Shared CPU BLAS thread budget for every CPU solver: exa-CPU Ma57 dense factorization (madnlp
 # blas_num_threads), PEtab Optim's Julia BLAS, and Fides/numpy (via OMP_NUM_THREADS). 64 =
@@ -66,16 +57,16 @@ const ALL_MODELS = sort(filter(m -> isdir(joinpath(MODELDIR, m)), readdir(MODELD
 # - Estimated event time: the switch time is a decision variable, so the gate cannot be
 #   resolved at build time. Oliveira estimates t_1/t_2 directly; Beer's condition table maps
 #   tau to estimated tau_* parameters.
+# - Does not build on the emc rewrite: Fiedler's six closed-form initial steady states do not
+#   come back from build_function, and Froehlich does not get through create_objective.
+#   Raia and Raimundez build since the form-grouped create_objective.
 const EXCLUDED_MODELS = [
     "Liu_IFACPapersOnLine2025", "Smith_BMCSystBiol2013",   # SBML <event>
     "Oliveira_NatCommun2021", "Beer_MolBioSystems2014",    # estimated event time
+    "Fiedler_BMCSystBiol2016", "Froehlich_CellSystems2018", # does not build on the emc rewrite
 ]
 
-# Models PEtab.jl fails to compile. Ordinary ExaModels targets, and the exa reference eval
-# (petab_obj) is skipped for them.
-const FAILED_MODELS = ["Froehlich_CellSystems2018", "Lang_PLOSComputBiol2024", "Raia_CancerResearch2011"]
-
-# The ExaModels target set. PEtab.jl attempts every model in the collection.
+# The ExaModels target set. The table still lists every model in the collection.
 const BENCHMARK_MODELS = filter(m -> m ∉ EXCLUDED_MODELS, ALL_MODELS)
 const PETAB_MODELS     = ALL_MODELS
 

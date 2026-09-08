@@ -6,21 +6,16 @@
 #   BENCH_BACKEND=gpu (default) -> exagpu_*
 #   BENCH_BACKEND=cpu           -> exacpu_*
 #
-# Each solve also stores <prefix>petab_obj := PEtab's objective at the ExaModels optimum.
-#
-# BENCH_ESCALATE=1 doubles subdivide and rebuilds whenever a solve terminates infeasible or
-# restoration-failed, up to BENCH_SD_CAP. The final level lands in <prefix>subdivide, the failed
-# levels' cumulative cost in <prefix>escalate_time.
-#
-# Compile timing splits into Phase 1 (PEtab setup + ODE presolve) and Phase 2 (ExaModels build);
-# after a converged first solve, N_SGM_RERUNS warm reruns give the SGM solve time. Resumable.
+# The mesh and K are chosen inside examodel_petab from the model size, so there is no subdivide to
+# escalate on. Compile time is the whole examodel_petab call and solve time the madnlp call; after
+# a converged first solve, N_SGM_RERUNS warm reruns give the SGM solve time. Resumable.
 #
 # Usage (GPU, strided one instance per GPU):
 #   julia --project=. -t 1 benchmark_helpers/run_examodels.jl <gpu_id> <num_instances> <instance_idx>
 # CPU (gpu_id arg ignored; run several instances to parallelize across cores):
 #   BENCH_BACKEND=cpu julia --project=. -t 1 benchmark_helpers/run_examodels.jl 0 <num_instances> <instance_idx>
 
-using ExaModelsPEtab, PEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels
+using ExaModelsPEtab, CUDA, MadNLP, MadNLPGPU, CUDSS, ExaModels
 # HSL is a licensed, user-supplied dependency (see README); only the CPU pass needs it.
 if lowercase(get(ENV, "BENCH_BACKEND", "gpu")) == "cpu"
     using MadNLPHSL
@@ -29,9 +24,6 @@ end
 # ─── CONFIGURABLE SETTINGS (single source of truth = options.jl) ────────────────
 include(joinpath(@__DIR__, "..", "options.jl"))   # MODELDIR + RESULTDIR + model sets + BENCH_* config
 
-const K             = BENCH_K
-const SUBDIVIDE     = BENCH_SUBDIVIDE
-const SD_CAP        = BENCH_SD_CAP
 const TOL           = BENCH_TOL
 const COMPILE_LIMIT = BENCH_COMPILE_LIMIT
 const SOLVE_LIMIT   = BENCH_SOLVE_LIMIT
@@ -46,10 +38,6 @@ const WARMUP_MODEL  = BENCH_WARMUP_MODEL
 const BACKEND = lowercase(get(ENV, "BENCH_BACKEND", "gpu"))
 const IS_GPU  = BACKEND != "cpu"
 const PFX     = IS_GPU ? "exagpu_" : "exacpu_"
-# Mesh escalation: on an infeasible or restoration-failed solve, double subdivide and rebuild,
-# up to SD_CAP
-const ESCALATE = get(ENV, "BENCH_ESCALATE", "0") == "1"
-
 # LiftedKKT (condensed-space) MadNLP regime; passed through from options.jl.
 const KKT_OPTS = (kkt_system = BENCH_KKT_SYSTEM(),
                   equality_treatment = BENCH_EQUALITY_TREATMENT(),
@@ -114,24 +102,7 @@ function exa_finished(m)
     cs != "ok" && return false
     ss in ("timeout", "error") && return true
     ss != "ok" && return false
-    return sgm in ("ok", "error", "skipped", "timeout")
-end
-
-# PEtab's objective at the ExaModels optimum. p is in parameters-table order, so permute into
-# PEtab's xnames order by name. The PEtabODEProblem build is untimed (the exa pipeline does not
-# use PEtab.jl); NaN if the build or eval fails.
-function petab_obj_at_exa(yaml, model, res)
-    try
-        PEprob = with_hard_deadline(COMPILE_LIMIT) do
-            PEtab.PEtabODEProblem(PEtab.PEtabModel(yaml))
-        end
-        pnames = model.petab.pnames
-        theta  = Array(res.solution)[1:length(pnames)]
-        xperm  = [findfirst(==(Symbol(nm)), pnames) for nm in Symbol.(PEprob.xnames)]
-        return PEprob.nllh(theta[xperm])
-    catch
-        return NaN
-    end
+    return sgm in ("ok", "error", "skipped", "timeout", "nonconverged")
 end
 
 # max constraint violation max(lcon - c(x), c(x) - ucon, 0) at x; 0 if unconstrained
@@ -143,91 +114,71 @@ function max_constr_viol(model, x)
 end
 
 # ─── build one ExaModel ──
-# Mirrors examodel_petab (api.jl at the pinned ExaModelsPEtab commit), split so t_phase1 marks
-# the boundary between setup (tables + spec + mesh + nominal solves + variables) and the
-# ExaModels constraint/objective build.
-function build_model(yaml, t_origin; subdivide = SUBDIVIDE)
-    backend  = IS_GPU ? CUDA.CUDABackend() : nothing
-    tables   = ExaModelsPEtab.PEtabTables(yaml)
-    modelsys = ExaModelsPEtab._load_model(tables)
-    spec     = ExaModelsPEtab._compile_spec(tables, modelsys)
-    theta0   = ExaModelsPEtab._resolve_theta0(spec, nothing)
-
-    if ExaModelsPEtab._is_steady_state(spec)
-        ExaModelsPEtab._has_preequilibration(spec) && error(
-            "unsupported pre-equilibration with steady-state (time=Inf) measurements")
-        zss0      = ExaModelsPEtab._steady_states(spec, modelsys, theta0)
-        u_vals_ss = ExaModelsPEtab._ss_u_vals(spec)
-        c = ExaModels.ExaCore(; backend = backend)
-        c = ExaModelsPEtab._create_variables_ss(c, spec, theta0, zss0)
-        t_phase1 = time() - t_origin
-        c = ExaModelsPEtab._create_constraints_ss(c, spec, theta0, u_vals_ss)
-        c, y0, sigma0 = ExaModelsPEtab._create_objective(c, spec, tables,
-                                                         ExaModelsPEtab._ss_ctx(c, spec, zss0))
-        meas_iidx = Int[]
-    else
-        # Mesh placement follows the package's model-size default (:integrator or :uniform)
-        mi = ExaModelsPEtab._default_mesh_init(spec)
-        mesh = mi === :uniform ?
-            ExaModelsPEtab._build_mesh(spec; subdivide = subdivide,
-                                       variant = ExaModelsPEtab._VARIANT) :
-            ExaModelsPEtab._init_mesh(spec, modelsys, theta0, K; subdivide = subdivide,
-                                      variant = ExaModelsPEtab._VARIANT,
-                                      ExaModelsPEtab._meshinit_defaults(spec)...)
-        c    = ExaModelsPEtab.EMC.CollocationExaCore(ExaModelsPEtab._core_nodes(mesh, spec.Nc),
-                                                     K; backend = backend)
-        z_init, zss_init = ExaModelsPEtab._solve_conditions(spec, modelsys, theta0, mesh,
-                                                            c.weights.taus)
-        c = ExaModelsPEtab._create_variables(c, spec, mesh, theta0, z_init, zss_init)
-        t_phase1 = time() - t_origin
-        c = ExaModelsPEtab._create_collocation(c, spec, mesh)
-        c = ExaModelsPEtab._create_continuity(c, spec, mesh)
-        z0arr = reshape(ExaModelsPEtab._var_starts(c, c.z), spec.Nz, spec.Nc, mesh.N, c.K + 1)
-        c, y0, sigma0 = ExaModelsPEtab._create_objective(c, spec, tables,
-                            ExaModelsPEtab._collocation_ctx(c, spec, mesh, z0arr))
-        meas_iidx = copy(mesh.meas_iidx)
-    end
-    ExaModelsPEtab._assert_no_flat_p(spec)
-    c = ExaModelsPEtab._attach_petab_meta(c, spec, tables, meas_iidx)
-    mdl = ExaModels.ExaModel(c)
-    ExaModels.set_start!(mdl, c.y, y0)
-    ExaModels.set_start!(mdl, c.sigma, sigma0)
+# The public API call, timed whole: there is no PEtab.jl setup phase left to separate out.
+function build_model(yaml)
+    mdl = examodel_petab(yaml; backend = IS_GPU ? CUDA.CUDABackend() : nothing)
     IS_GPU && CUDA.synchronize()
-    return mdl, mdl.meta.nvar, mdl.meta.ncon, t_phase1
+    return mdl, mdl.meta.nvar, mdl.meta.ncon
 end
 
 # ─── SGM warm reruns (timing only) ──────────────────────────────────────────────
+is_converged(solve_status) = uppercase(solve_status) in ("SOLVE_SUCCEEDED", "SOLVED_TO_ACCEPTABLE_LEVEL")
+
+# theta at the solution, the vector evaluate_objective takes
+function theta_star(model, solution)
+    haskey(model.refs, :theta) || return Float64[]
+    theta = model.refs.theta
+    return Array(solution)[theta.offset .+ (1:theta.length)]
+end
+
+# Draw warm reruns until N_SGM_RERUNS of them converge, allowing one extra attempt.
 function run_sgm_reruns(m, rp, model)
     write_result(rp, Dict(PFX*"sgm_status" => "running"))
-    solve_times = Float64[]
-    for i in 1:N_SGM_RERUNS
-        @info "[$m] SGM solve $i/$N_SGM_RERUNS ..."
+    solve_times = Float64[]; iters = Int[]; solve_statuses = String[]; objectives = Float64[]
+    max_attempts = N_SGM_RERUNS + 1
+    while length(solve_times) < max_attempts && count(is_converged, solve_statuses) < N_SGM_RERUNS
+        attempt = length(solve_times) + 1
+        @info "[$m] SGM solve $attempt/$max_attempts ..."
         try
             IS_GPU && GC.gc()     # clear dead GPU allocs OUTSIDE timing; stops a GC/allocator stall landing in a timed solve (keeps pool+kernels warm; no reclaim)
-            t = with_hard_deadline(SOLVE_LIMIT + 300.0; flag=rp*".$(PFX)sgm") do
+            t, res = with_hard_deadline(SOLVE_LIMIT + 300.0; flag=rp*".$(PFX)sgm") do
                 t0 = time()
-                solve_madnlp(model)   # warm rerun, timed bare
-                time() - t0
+                r = solve_madnlp(model)   # warm rerun, timed bare
+                (time() - t0, r)
             end
-            push!(solve_times, t)
+            push!(solve_times, t); push!(iters, res.iter)
+            push!(solve_statuses, string(res.status)); push!(objectives, res.objective)
         catch e
-            @error "[$m] SGM solve $i failed" exception=(e, catch_backtrace())
-            write_result(rp, Dict(PFX*"sgm_status" => "error", PFX*"sgm_error" => sprint(showerror, e)))
-            return
-        end
-        # A rerun that reaches max_wall_time poisons the SGM: record and move on
-        if solve_times[end] >= 0.99 * SOLVE_LIMIT
-            write_result(rp, Dict(PFX*"sgm_status" => "timeout",
-                PFX*"solve_times" => join(solve_times, ","),
-                PFX*"sgm_error" => "rerun $i reached max_wall_time; SGM stopped"))
-            @info "[$m] SGM rerun $i reached walltime; stopping"
+            @error "[$m] SGM solve $attempt failed" exception=(e, catch_backtrace())
+            write_result(rp, Dict(PFX*"sgm_status" => "error", PFX*"sgm_error" => sprint(showerror, e),
+                PFX*"sgm_times_all"    => join(solve_times, ","),
+                PFX*"sgm_solve_status" => join(solve_statuses, ","),
+                PFX*"sgm_n" => "$(count(is_converged, solve_statuses))/$(length(solve_times))"))
             return
         end
     end
-    sgm_solve = t_sgmdelta(solve_times, SGM_SHIFT)
-    write_result(rp, Dict(PFX*"sgm_status" => "ok",
-                          PFX*"solve_times" => join(solve_times, ","), PFX*"sgm_solve_time" => sgm_solve))
-    @info "[$m] SGM done: solve=$sgm_solve s (n=$N_SGM_RERUNS)"
+    converged = is_converged.(solve_statuses)
+    converged_times = solve_times[converged]
+    out = Dict{String,Any}(PFX*"sgm_status"       => "ok",
+                           PFX*"solve_times"      => join(converged_times, ","),
+                           PFX*"sgm_times_all"    => join(solve_times, ","),
+                           PFX*"sgm_iters"        => join(iters, ","),
+                           PFX*"sgm_solve_status" => join(solve_statuses, ","),
+                           PFX*"sgm_objectives"   => join(objectives, ","),
+                           PFX*"sgm_n"            => "$(count(converged))/$(length(solve_times))")
+    if isempty(converged_times)
+        out[PFX*"sgm_status"] = "nonconverged"
+        out[PFX*"sgm_error"]  = "0 of $(length(solve_times)) reruns converged, no SGM"
+        @info "[$m] SGM: 0/$(length(solve_times)) reruns converged, no SGM"
+    else
+        sorted_times = sort(converged_times)
+        out[PFX*"sgm_solve_time"] = t_sgmdelta(converged_times, SGM_SHIFT)
+        out[PFX*"sgm_median"]     = sorted_times[cld(length(sorted_times), 2)]
+        out[PFX*"sgm_min"]        = sorted_times[1]
+        out[PFX*"sgm_max"]        = sorted_times[end]
+        @info "[$m] SGM done: solve=$(out[PFX*"sgm_solve_time"]) s over $(out[PFX*"sgm_n"]) converged reruns"
+    end
+    write_result(rp, out)
 end
 
 # ─── main per-model benchmark ─────────────────────────────────────────────────
@@ -244,75 +195,54 @@ function bench_one(m)
             return
         end
 
-        # ── COMPILE + SOLVE, doubling subdivide on infeasibility when BENCH_ESCALATE=1 ──
-        sd = SUBDIVIDE
-        t_esc0 = time()
-        write_result(rp, Dict(PFX*"escalate_time" => "", PFX*"subdivide" => ""))
+        # ── COMPILE + SOLVE ──
+        write_result(rp, Dict(
+            PFX*"compile_status" => "compiling", PFX*"compile_time" => "",
+            PFX*"solve_status"   => "skipped",   PFX*"solve_time"   => "", PFX*"term_status"   => "",
+            PFX*"objective"      => "",          PFX*"iter"         => "",
+            PFX*"nvar"           => "",          PFX*"ncon"         => "", PFX*"error" => "",
+            PFX*"constr_viol"    => "",          PFX*"theta_star"   => "",
+        ))
+        @info "[$m] compiling on $BACKEND (compile_limit=$(COMPILE_LIMIT)s)..."
         local res
-        while true
+        try
+            t0 = time()
+            mdl, nvar, ncon = with_hard_deadline(COMPILE_LIMIT; flag=rp*".$(PFX)compiling") do
+                build_model(yaml)
+            end
+            model = mdl
             write_result(rp, Dict(
-                PFX*"compile_status" => "compiling", PFX*"compile_time" => "", PFX*"presolve_time" => "",
-                PFX*"solve_status"   => "skipped",   PFX*"solve_time"   => "", PFX*"term_status"   => "",
-                PFX*"objective"      => "",          PFX*"petab_obj"    => "", PFX*"iter" => "",
-                PFX*"nvar"           => "",          PFX*"ncon"         => "", PFX*"error" => "",
-                PFX*"constr_viol"    => "",          PFX*"subdivide"    => sd,
+                PFX*"compile_status" => "ok",
+                PFX*"compile_time"   => time() - t0,
+                PFX*"nvar" => nvar, PFX*"ncon" => ncon,
             ))
-            @info "[$m] compiling on $BACKEND (K=$K, subdivide=$sd, compile_limit=$(COMPILE_LIMIT)s)..."
-            try
-                t0 = time()
-                mdl, nvar, ncon, t_phase1 = with_hard_deadline(COMPILE_LIMIT; flag=rp*".$(PFX)compiling") do
-                    build_model(yaml, t0; subdivide = sd)
-                end
-                model = mdl
-                write_result(rp, Dict(
-                    PFX*"compile_status" => "ok",
-                    PFX*"compile_time"   => time() - t0,
-                    PFX*"presolve_time"  => t_phase1,
-                    PFX*"nvar" => nvar, PFX*"ncon" => ncon,
-                ))
-            catch e
-                write_result(rp, Dict(PFX*"compile_status" => "error", PFX*"compile_time" => "", PFX*"error" => sprint(showerror, e)))
-                @error "[$m] compile failed" exception=(e, catch_backtrace())
-                return
-            end
-
-            # ── SOLVE (first run includes one-time JIT) ───────────────
-            @info "[$m] solving with MadNLP/$BACKEND (max_wall_time=$(SOLVE_LIMIT)s)..."
-            write_result(rp, Dict(PFX*"solve_status" => "solving"))
-            try
-                t0 = time()
-                res = with_hard_deadline(SOLVE_LIMIT + 300.0; flag=rp*".$(PFX)solving") do; solve_madnlp(model); end
-                write_result(rp, Dict(
-                    PFX*"solve_status" => "ok",
-                    PFX*"solve_time"   => time() - t0,
-                    PFX*"term_status"  => string(res.status),
-                    PFX*"objective"    => res.objective,
-                    PFX*"iter"         => res.iter,
-                    PFX*"constr_viol"  => max_constr_viol(model, res.solution),
-                ))
-            catch e
-                write_result(rp, Dict(PFX*"solve_status" => "error", PFX*"error" => sprint(showerror, e)))
-                @error "[$m] solve failed" exception=(e, catch_backtrace())
-                model = nothing; gpu_reclaim()
-                return
-            end
-
-            term_up = uppercase(string(res.status))
-            if ESCALATE && (occursin("INFEASIBLE", term_up) || occursin("RESTORATION", term_up)) &&
-               2 * sd <= SD_CAP
-                # Cumulative cost of the failed levels; the final level keeps the headline keys
-                write_result(rp, Dict(PFX*"escalate_time" => time() - t_esc0))
-                @info "[$m] infeasible at subdivide=$sd; doubling to $(2 * sd)"
-                model = nothing; gpu_reclaim()
-                sd *= 2
-                continue
-            end
-            break
+        catch e
+            write_result(rp, Dict(PFX*"compile_status" => "error", PFX*"compile_time" => "", PFX*"error" => sprint(showerror, e)))
+            @error "[$m] compile failed" exception=(e, catch_backtrace())
+            return
         end
-        # Untimed reference eval, written separately so a kill here cannot lose the solve row.
-        # FAILED_MODELS have no PEtab.jl build, so skip the doomed attempt.
-        write_result(rp, Dict(PFX*"petab_obj" =>
-            (m in FAILED_MODELS ? NaN : petab_obj_at_exa(yaml, model, res))))
+
+        # ── SOLVE (first run includes one-time JIT) ───────────────
+        @info "[$m] solving with MadNLP/$BACKEND (max_wall_time=$(SOLVE_LIMIT)s)..."
+        write_result(rp, Dict(PFX*"solve_status" => "solving"))
+        try
+            t0 = time()
+            res = with_hard_deadline(SOLVE_LIMIT + 300.0; flag=rp*".$(PFX)solving") do; solve_madnlp(model); end
+            write_result(rp, Dict(
+                PFX*"solve_status" => "ok",
+                PFX*"solve_time"   => time() - t0,
+                PFX*"term_status"  => string(res.status),
+                PFX*"objective"    => res.objective,
+                PFX*"iter"         => res.iter,
+                PFX*"constr_viol"  => max_constr_viol(model, res.solution),
+                PFX*"theta_star"   => join(theta_star(model, res.solution), ","),
+            ))
+        catch e
+            write_result(rp, Dict(PFX*"solve_status" => "error", PFX*"error" => sprint(showerror, e)))
+            @error "[$m] solve failed" exception=(e, catch_backtrace())
+            model = nothing; gpu_reclaim()
+            return
+        end
     end
 
     # ── SGM SOLVE RERUNS (only after a converged first solve) ──────────────────
@@ -327,10 +257,8 @@ function bench_one(m)
             if model === nothing  # resuming: rebuild and prime once
                 yaml === nothing && return
                 @info "[$m] rebuilding for SGM (resume)..."
-                sd_rec = something(tryparse(Int, get(d2, PFX*"subdivide", "")), SUBDIVIDE)
                 try
-                    t0 = time()
-                    model, _, _, _ = with_hard_deadline(COMPILE_LIMIT) do; build_model(yaml, t0; subdivide = sd_rec); end
+                    model, _, _ = with_hard_deadline(COMPILE_LIMIT) do; build_model(yaml); end
                     solve_madnlp(model)
                 catch e
                     @error "[$m] SGM rebuild failed" exception=(e, catch_backtrace())
@@ -350,8 +278,7 @@ function warmup()
     yaml = get_yaml(WARMUP_MODEL); yaml === nothing && return
     @info "warmup: JIT build+solve on $WARMUP_MODEL ($BACKEND) ..."
     try
-        t0 = time()
-        mdl, _, _, _ = build_model(yaml, t0)
+        mdl, _, _ = build_model(yaml)
         IS_GPU && CUDA.synchronize()
         madnlp(mdl; tol=TOL, acceptable_tol=ACCEPT_TOL, acceptable_iter=ACCEPT_ITER, max_iter=MAX_ITER,
                max_wall_time=250.0, linear_solver=LINEAR_SOLVER, KKT_OPTS...)

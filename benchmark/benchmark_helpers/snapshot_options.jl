@@ -1,4 +1,4 @@
-using CUDA, MadNLP, MadNLPGPU, CUDSS, Optim, Fides
+using CUDA, MadNLP, MadNLPGPU, CUDSS
 
 try
     using MadNLPHSL
