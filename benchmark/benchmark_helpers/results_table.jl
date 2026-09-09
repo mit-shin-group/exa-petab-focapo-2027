@@ -58,10 +58,10 @@ function petab_labels(d)
     sort!(unique!(labs))
 end
 
-# ROG(-) = (exa's petab_obj − po) / |po|, po = the PEtab reference objective. Reads <pfx>petab_obj,
-# falling back to <pfx>objective.
+# ROG(-) = (exa's petab_obj − po) / |po|, po = the PEtab reference objective. Reads <pfx>petab_obj
+# only, so ROG is blank where PEtab never evaluated our optimum.
 function gap_val(d, pfx, po)
-    eo = fparse(g(d, pfx * "petab_obj")); eo === nothing && (eo = fparse(g(d, pfx * "objective")))
+    eo = fparse(g(d, pfx * "petab_obj"))
     (eo === nothing || po === nothing || !isfinite(eo) || !isfinite(po) || po == 0.0) && return nothing
     (eo - po) / abs(po)
 end
@@ -209,8 +209,10 @@ end
 println(buf, sep)
 
 # ─── summary (GPU is the primary ExaModels backend) ─────────────────────────────
-exa_solved(i) = MODELS[i] in EXA_TARGETS && madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0", "0A", "0S", "0AS")
-exa_subopt(i) = MODELS[i] in EXA_TARGETS && madnlp_code(D[i],"exagpu_",petab_po[i]) in ("0S", "0AS")
+# `*` marks a convergence the reruns did not reproduce; it still counts as solved.
+exa_code(i)   = rstrip(madnlp_code(D[i],"exagpu_",petab_po[i]), '*')
+exa_solved(i) = MODELS[i] in EXA_TARGETS && exa_code(i) in ("0", "0A", "0S", "0AS")
+exa_subopt(i) = MODELS[i] in EXA_TARGETS && exa_code(i) in ("0S", "0AS")
 nsolved = count(exa_solved, eachindex(MODELS))
 
 println(buf, "\nSUMMARY")

@@ -64,7 +64,6 @@ const SUBOPT_ROG = 0.02
 # `po` is PEtab's reference optimum (the winning optimizer's objective), passed in as the ROG denominator.
 function gap_val(d, pfx, po)
     eo = tryparse(Float64, get(d, pfx * "petab_obj", ""))
-    eo === nothing && (eo = tryparse(Float64, get(d, pfx * "objective", "")))
     (eo === nothing || po === nothing || !isfinite(eo) || !isfinite(po) || po == 0.0) && return nothing
     (eo - po) / abs(po)
 end
@@ -195,12 +194,12 @@ scatter!(plt, pet_x, pet_y;
 scatter!(plt, petx_x, petx_y;
          label = "", marker = :square,                             # red box (unlabeled; X overlay labels it)
          ms = 6, mc = J_RED, msc = :black, msw = 1.0, malpha = 1.0)
-scatter!(plt, petx_x, petx_y;
+isempty(petx_x) || scatter!(plt, petx_x, petx_y;
          label = "ExaModels failed to solve", marker = :xcross,     # black X inside the box
          ms = 5, mc = :black, msc = :black, msw = 2.0, malpha = 1.0)
 # ExaModels converged but suboptimal (0S/0AS): black + overlaid on the plotted GPU/CPU point.
 subopt_x = vcat(gpus_x, cpus_x); subopt_y = vcat(gpus_y, cpus_y)
-scatter!(plt, subopt_x, subopt_y;
+isempty(subopt_x) || scatter!(plt, subopt_x, subopt_y;
          label = "ExaModels suboptimal solve", marker = :cross,     # black + on top of the point
          ms = 5, mc = :black, msc = :black, msw = 2.0, malpha = 1.0)
 

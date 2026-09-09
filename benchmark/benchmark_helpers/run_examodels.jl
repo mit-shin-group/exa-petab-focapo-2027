@@ -113,6 +113,26 @@ function max_constr_viol(model, x)
     maximum(max.(lc .- c, c .- uc, 0.0))
 end
 
+# max relative constraint violation: row violation over the largest term |J_ij x_j| in the row
+function max_rel_constr_viol(model, x)
+    model.meta.ncon == 0 && return 0.0
+    c = similar(x, model.meta.ncon); ExaModels.cons!(model, x, c)
+    c = Array(c); lc = Array(model.meta.lcon); uc = Array(model.meta.ucon)
+    viol = max.(lc .- c, c .- uc, 0.0)
+    rows = similar(x, Int, model.meta.nnzj)
+    cols = similar(x, Int, model.meta.nnzj)
+    vals = similar(x, model.meta.nnzj)
+    ExaModels.jac_structure!(model, rows, cols)
+    ExaModels.jac_coord!(model, x, vals)
+    rows, cols, vals, xh = Array(rows), Array(cols), Array(vals), Array(x)
+    scale = zeros(model.meta.ncon)
+    for k in eachindex(rows)
+        term = abs(vals[k] * xh[cols[k]])
+        scale[rows[k]] = max(scale[rows[k]], term)
+    end
+    return maximum(viol ./ max.(scale, eps()))
+end
+
 # ─── build one ExaModel ──
 # The public API call, timed whole: there is no PEtab.jl setup phase left to separate out.
 function build_model(yaml)
@@ -202,6 +222,8 @@ function bench_one(m)
             PFX*"objective"      => "",          PFX*"iter"         => "",
             PFX*"nvar"           => "",          PFX*"ncon"         => "", PFX*"error" => "",
             PFX*"constr_viol"    => "",          PFX*"theta_star"   => "",
+            PFX*"rel_constr_viol" => "",
+            PFX*"primal_feas"    => "",          PFX*"dual_feas"    => "",
         ))
         @info "[$m] compiling on $BACKEND (compile_limit=$(COMPILE_LIMIT)s)..."
         local res
@@ -234,7 +256,10 @@ function bench_one(m)
                 PFX*"term_status"  => string(res.status),
                 PFX*"objective"    => res.objective,
                 PFX*"iter"         => res.iter,
+                PFX*"primal_feas" => res.primal_feas,   # inf_pr, what MadNLP tests against tol
+                PFX*"dual_feas"   => res.dual_feas,     # inf_du, likewise
                 PFX*"constr_viol"  => max_constr_viol(model, res.solution),
+                PFX*"rel_constr_viol" => try max_rel_constr_viol(model, res.solution) catch; "" end,
                 PFX*"theta_star"   => join(theta_star(model, res.solution), ","),
             ))
         catch e

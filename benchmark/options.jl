@@ -11,7 +11,7 @@ const BENCH_TAG = "emc"
 # Choose which backend(s) to benchmark in this tagged run. 
 # If more than one, it runs in series: ExaGPU -> ExaCPU -> PEtab
 const BENCH_INCLUDE_EXAGPU = true
-const BENCH_INCLUDE_EXACPU = false
+const BENCH_INCLUDE_EXACPU = true
 const BENCH_INCLUDE_PETAB  = false
 
 # ── 1. SHARED OPTIONS (both backends) ────────────────────────────────────────────────────
