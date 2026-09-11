@@ -9,4 +9,4 @@
 #SBATCH -t 7-00:00:00
 #SBATCH -o slurm-%j.out
 cd "$SLURM_SUBMIT_DIR"
-GPU_ID=0 bash run_benchmarks.sh
+bash run_benchmarks.sh

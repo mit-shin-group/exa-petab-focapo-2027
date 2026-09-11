@@ -5,11 +5,11 @@
 #SBATCH -G h200:1
 #SBATCH -c 16
 #SBATCH --mem=200G
-#SBATCH -t 7-00:00:00
+#SBATCH -t 1-00:00:00
 #SBATCH -o slurm-%j.out
-cd "$SLURM_SUBMIT_DIR"
+cd "$SLURM_SUBMIT_DIR" && mkdir -p logs results
 case $1 in
     warmup) julia --project=. src/run_warmup.jl ;;
     report) julia --project=. src/results_table.jl && julia --project=. src/results_plot.jl ;;
-    *)      GPU_ID=0 bash run_benchmarks.sh "${!SLURM_ARRAY_TASK_ID}" ;;
+    *)      bash run_benchmarks.sh "${!SLURM_ARRAY_TASK_ID}" ;;
 esac

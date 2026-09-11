@@ -11,7 +11,7 @@ read -r BACKENDS THREADS BUILD_LIMIT SOLVE_LIMIT N_RERUNS WARMUP < <(julia --pro
     include("options.jl")
     print(join(RUN_BACKENDS, ","), " ", CPU_THREADS, " ", Int(BUILD_LIMIT), " ", Int(SOLVE_LIMIT), " ", N_RERUNS, " ", WARMUP_MODEL)')
 MODELS=${*:-$(julia --project=. -e 'include("options.jl"); print(join(MODELS, " "))')}
-export OMP_NUM_THREADS=$THREADS OPENBLAS_NUM_THREADS=$THREADS CUDA_VISIBLE_DEVICES=${GPU_ID:-0}
+export OMP_NUM_THREADS=$THREADS OPENBLAS_NUM_THREADS=$THREADS CUDA_VISIBLE_DEVICES=${GPU_ID:-${CUDA_VISIBLE_DEVICES:-0}}
 BACKSTOP=$((BUILD_LIMIT + SOLVE_LIMIT * (1 + N_RERUNS) + 900))
 
 enabled() { [[ ",$BACKENDS," == *",$1,"* ]]; }
