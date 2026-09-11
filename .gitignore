@@ -1,5 +1,3 @@
-/benchmark/benchmark_helpers/logs/
-*.log
-*_results.txt.*compiling
-*_results.txt.*solving
+/benchmark/logs/
 /benchmark/.CondaPkg/
+/CLAUDE.md

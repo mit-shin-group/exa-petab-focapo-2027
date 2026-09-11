@@ -15,23 +15,5 @@ Run the benchmark with
 make -C benchmark
 ```
 
-## Benchmark options
-All ExaModels.jl, MadNLP.jl, PEtab.jl and its solver options can be configured in `options.jl`.
-
-Here, the benchmark run can also be tagged by changing `BENCH_TAG = <tag>`. 
-Each tagged run is stored in `benchmark_results/benchmark_results_<tag>` which contains the following:
-- `<model>_results.txt` for every model in the `BENCHMARK_MODELS` set
-- `_config.toml` a complete snapshot of the settings used
-The benchmark is resumable, so re-running skips models that already have a terminal result.
-
-This tag also selects which run `results_table.txt` and `results_plot.png` are reported from, so different configurations can be kept side by side — e.g. set `BENCH_TAG = "ma57"` and `BENCH_CPU_SOLVER = MadNLPHSL.Ma57Solver` in `options.jl`, then:
-```
-$ bash run_benchmarks.sh   # -> benchmark_results/benchmark_results_ma57/
-```
-For tagged runs that are complete, `run_benchmarks.sh` only regenerates the table and plot by pulling the figure options from `/benchmark_helpers`.
-
-## Existing results
-The reference run for the paper is `benchmark_results/benchmark_results_focapo/` (set `BENCH_TAG = "focapo"` in `options.jl`). The `_config.toml` file contains all of the options used.
-
 ## Issues
 For support, contact [@jsphchoi](https://github.com/jsphchoi).

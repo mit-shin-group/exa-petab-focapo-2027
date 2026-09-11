@@ -1,67 +1,63 @@
-================================================================================================================
-               |    ExaModels + MadNLP (GPU)     |    ExaModels + MadNLP (CPU)     |  PEtab.jl + Best Optimizer 
-Model          | CMPL(s)   SOL(s)  STAT   ROG(-) | CMPL(s)   SOL(s)  STAT   ROG(-) | CMPL(s)   SOL(s)  STAT  TAG
-----------------------------------------------------------------------------------------------------------------
-Alkan          |    52.6  901.589     T        - |   40.28  907.691     T        - |       -        -     -    -
-Armistead      |   14.62    0.306     0        - |   13.51    0.129     0        - |   52.26    0.132    0F   GN
-Bachmann       |   35.87  901.391     T        - |   21.12        E     -        - |  133.71   23.336    0F   GN
-Beer           |       -        -     -        - |       -        -     -        - |       -        -     -    -
-Bertozzi       |    9.11    0.066     0        - |    7.88    0.013     0        - |    0.38    0.189    0F BFGS
-Blasi          |   32.28    0.343     0        - |   19.64    0.009     0        - |    0.35    0.692    0F BFGS
-Boehm          |   13.05    0.149     0        - |   12.25    0.321     0        - |  355.28    0.009     0  IPN
-Borghans       |   11.11        -     R        - |   10.36        E     -        - |   18.63   89.965    0F BFGS
-Brannmark      |   35.17        -     D        - |   32.02        -     R        - |       -        -     -    -
-Bruno          |    5.33    0.136     0        - |    4.64    0.261     0        - |   34.33    0.487    0F   GN
-Chen           |    90.1        E     -        - |   91.48        -     T        - |       -        -     -    -
-Crauste        |    1.43    0.124     0        - |    4.51    0.394     0        - |   49.33    0.434    0F   GN
-Elowitz        |    5.85  900.931     T        - |    8.08        E     -        - |   53.75   18.587    0F   GN
-Fiedler        |       -        -     -        - |       -        -     -        - |       -        -     -    -
-Froehlich      |       -        -     -        - |       -        -     -        - |       -        -     -    -
-Fujita         |   15.26  900.886     T        - |   18.97  904.119     T        - |       -        -     -    -
-Giordano       |   55.69        -     D        - |   59.26        -     D        - |       -        -     -    -
-Isensee        |   91.54  263.865    0A        - |   88.49  918.797     T        - |       -        -     -    -
-Lang           |   28.32  901.692     T        - |   26.76        E     -        - |       -        -     -    -
-Laske          |   16.25    7.592    0*        - |   16.58   39.626     0        - |   59.23   24.660    0F   GN
-Liu            |       -        -     -        - |       -        -     -        - |       -        -     -    -
-Lucarelli      |   26.51  901.094     T        - |   24.44  905.145     T        - |  284.16  221.146    0F BFGS
-Okuonghae      |    4.71    4.070     0        - |    3.53    0.399     0        - |    0.46   10.856    0F BFGS
-Oliveira       |       -        -     -        - |       -        -     -        - |       -        -     -    -
-Perelson       |    1.22    1.539     0        - |     1.1    5.758     0        - |    0.14    0.135    0F BFGS
-Rahman         |   11.95    0.242     0        - |     9.9    0.176     0        - |   48.08    0.233    0F   GN
-Raia           |   10.38        -     R        - |    7.12  901.902     T        - |       -        -     -    -
-Raimundez      |    68.4  901.283     T        - |   50.14  923.552     T        - |       -        -     -    -
-SalazarCavazos |   13.21   53.674     0        - |   14.29  293.999     0        - |  257.35  215.807    0F   GN
-Schwen         |    6.36   17.227    0A        - |    4.59   68.564    0A        - |   47.48    6.529    0F BFGS
-Smith          |       -        -     -        - |       -        -     -        - |       -        -     -    -
-Sneyd          |   18.66    5.920    0A        - |   23.64   26.602    0A        - |    4.67    5.744    0F BFGS
-Weber          |   44.52    5.248    0*        - |   40.04  916.455     T        - |       -        -     -    -
-Zhao           |    8.03   26.217    0A        - |     6.2   65.513    0A        - |    0.19   15.046    0F BFGS
-Zheng          |   19.63    5.379     0        - |   19.04   25.350    0A        - |    0.66    2.700    0F BFGS
-----------------------------------------------------------------------------------------------------------------
+===================================================================================================================
+               |     ExaModels + MadNLP (GPU)     |     ExaModels + MadNLP (CPU)     |        PEtab.jl (CPU)       
+Model          |  CMPL(s)   SOL(s)  STAT   ROG(-) |  CMPL(s)   SOL(s)  STAT   ROG(-) |  CMPL(s)   SOL(s)  STAT  OPT
+-------------------------------------------------------------------------------------------------------------------
+Alkan          |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Armistead      |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Bachmann       |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Beer           |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Bertozzi       |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Blasi          |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Boehm          |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Borghans       |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Brannmark      |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Bruno          |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Chen           |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Crauste        |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Elowitz        |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Fiedler        |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Froehlich      |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Fujita         |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Giordano       |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Isensee        |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Lang           |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Laske          |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Liu            |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Lucarelli      |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Okuonghae      |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Oliveira       |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Perelson       |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Rahman         |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Raia           |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Raimundez      |        -        -     -        - |        -        -     -        - |        -        -     -    -
+SalazarCavazos |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Schwen         |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Smith          |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Sneyd          |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Weber          |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Zhao           |        -        -     -        - |        -        -     -        - |        -        -     -    -
+Zheng          |        -        -     -        - |        -        -     -        - |        -        -     -    -
+-------------------------------------------------------------------------------------------------------------------
 
 SUMMARY
-  Target models          : 29 / 35  (6 excluded, see EXCLUDED_MODELS)
-  ExaModels solved (GPU) : 17 / 29  (solve status 0 / 0A / 0S / 0AS)
-  Solved-but-suboptimal  :  0 / 17  (converged but ROG ≥ 0.02 vs PEtab 0S / 0AS )
+  ExaModels built (GPU)  :  0 / 35
+  ExaModels solved (GPU) :  0 / 35  (0 suboptimal)
+  ExaModels built (CPU)  :  0 / 35
+  ExaModels solved (CPU) :  0 / 35  (0 suboptimal)
+  PEtab.jl built         :  0 / 35
+  PEtab.jl solved        :  0 / 35
 
 TABLE KEY
-  CMPL(s) := Model compilation time (T = compile timed out, E = compile errored)
-  SOL(s)  := Solver solve time, shifted geometric mean (by δ = 0.01s) over the converged reruns of n=5 (E = solve errored, T = no rerun converged; STAT * = fewer than 5 converged, sgm_n in the result file has the count)
-  STAT    := Solver status
-  ROG(-)  := relative objective gap = (petab.nllh(exa_p*) - petab_obj) / |petab_obj|  (negative => ExaModels lower)
-  TAG     := Fastest PEtab optimizer for the model (IPN=Optim.IPNewton, GN=Fides.CustomHessian/GaussNewton, BFGS=Fides.BFGS)
+  CMPL(s) := model build time, 3600 = timed out, E = errored
+  SOL(s)  := shifted geometric mean (δ = 0.01 s) of 5 solve reruns after a converged first solve, 3600 = timed out
+  STAT    := solver status of the first solve, * = a rerun ended with this status, S = suboptimal (ROG >= 0.02)
+  ROG(-)  := relative objective gap (obj(theta) - obj(theta_petab)) / |obj(theta_petab)|, both by evaluate_objective
+  OPT     := PEtab.jl optimizer (IPN = Optim.IPNewton, GN = Fides.CustomHessian, BFGS = Fides.BFGS)
 
   MadNLP STATUS KEY
-     0 : SOLVE_SUCCEEDED
-    0A : SOLVED_TO_ACCEPTABLE_LEVEL
-     T : WALLTIME_EXCEEDED (timeout)
-     R : RESTORATION_FAILED
-     D : SEARCH_DIRECTION_BECOMES_TOO_SMALL
-     - : compile or solve failed, or not run
+     - : not run
 
   PEtab STATUS KEY
-     0 : Converged by gradient, ‖g‖∞ ≤ tol
-    0F : Converged by objective (F), |Δf| ≤ ftol·|f| (with ‖g‖ > tol)
-     - : compile or solve failed, or not run
+     - : not run
 
-================================================================================================================
+===================================================================================================================
