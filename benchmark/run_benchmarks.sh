@@ -2,6 +2,7 @@
 # Run the benchmark: warmup model, then every model on gpu, cpu and petab, then the report.
 #   bash run_benchmarks.sh
 #   GPU_ID=1 bash run_benchmarks.sh
+#   bash run_benchmarks.sh Model_A Model_B   TODO (REVIEW) only these models, no warmup or report
 set -u
 cd "$(dirname "$0")"
 mkdir -p logs results
@@ -9,7 +10,7 @@ mkdir -p logs results
 read -r BACKENDS THREADS BUILD_LIMIT SOLVE_LIMIT N_RERUNS WARMUP < <(julia --project=. -e '
     include("options.jl")
     print(join(RUN_BACKENDS, ","), " ", CPU_THREADS, " ", Int(BUILD_LIMIT), " ", Int(SOLVE_LIMIT), " ", N_RERUNS, " ", WARMUP_MODEL)')
-MODELS=$(julia --project=. -e 'include("options.jl"); print(join(MODELS, " "))')
+MODELS=${*:-$(julia --project=. -e 'include("options.jl"); print(join(MODELS, " "))')}
 export OMP_NUM_THREADS=$THREADS OPENBLAS_NUM_THREADS=$THREADS CUDA_VISIBLE_DEVICES=${GPU_ID:-0}
 BACKSTOP=$((BUILD_LIMIT + SOLVE_LIMIT * (1 + N_RERUNS) + 900))
 
@@ -28,9 +29,11 @@ run() {
 
 report() { julia --project=. src/results_table.jl && julia --project=. src/results_plot.jl; }
 
-echo "[0/4] warmup model $WARMUP"
-julia --project=. src/run_warmup.jl
-report
+if [ $# -eq 0 ]; then
+    echo "[0/4] warmup model $WARMUP"
+    julia --project=. src/run_warmup.jl
+    report
+fi
 
 stage=1
 for backend in gpu cpu petab; do
@@ -45,5 +48,7 @@ for backend in gpu cpu petab; do
     stage=$((stage + 1))
 done
 
-echo "[4/4] report"
-report
+if [ $# -eq 0 ]; then
+    echo "[4/4] report"
+    report
+fi
